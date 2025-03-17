@@ -1,6 +1,14 @@
 from goad.config import DataConfig
 from goad.filehandler import FileHandler
-from goad.dataprocessor import DataProcessor, ProcessingConfig
+from goad.dataprocessor import (
+    DataProcessor,
+    ProcessingConfig,
+    DateConverter,
+    DeathProcessor,
+    DateFilter,
+    RollingAverage,
+    ColumnScaler
+)
 
 if __name__ == "__main__":
     # Initialize configurations
@@ -12,9 +20,17 @@ if __name__ == "__main__":
 
     # Set up pipeline
     filehandler = FileHandler(data_config)
-    processor = DataProcessor(filehandler, processing_config)
+    processing_steps = [
+        DateConverter(processing_config),
+        DeathProcessor(processing_config),
+        DateFilter(processing_config),
+        RollingAverage(processing_config),
+        ColumnScaler(processing_config)
+    ]
+    processor = DataProcessor(processing_steps)
 
     # Run pipeline
     filehandler.download()
-    processor.process()
-    processor.save()
+    data = filehandler.load()
+    processed_data = processor.process(data)
+    filehandler.save(processed_data)

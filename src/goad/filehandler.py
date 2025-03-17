@@ -30,3 +30,16 @@ class FileHandler:
             if not dir.exists():
                 logger.info(f"Creating directory {dir}")
                 dir.mkdir(parents=True, exist_ok=True)
+
+    def load(self) -> pd.DataFrame:
+        """Load data from raw directory"""
+        raw_path = self.config.data_dir / "raw" / self.config.filename
+        data = pd.read_csv(raw_path)
+        logger.info(f"Loaded data from {raw_path}")
+        return data
+
+    def save(self, data: pd.DataFrame) -> None:
+        """Save data to processed directory"""
+        processed_path = self.config.data_dir / "processed" / self.config.filename
+        data.to_csv(processed_path)
+        logger.success(f"Saved processed data to {processed_path}")
