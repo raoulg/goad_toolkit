@@ -42,6 +42,12 @@ class BasePlot(ABC):
         self.fig = None
         self.ax = None
 
+    def plot(self, n_plots: Optional[int] = None, *args, **kwargs):
+        """Abstract method for plotting data."""
+        if self.fig is None:
+            self.create_figure(n_plots)
+        return self.build(*args, **kwargs)
+
     def create_figure(self, n_plots: Optional[int] = None):
         """Create a figure and configure it based on settings.
         Parameters:
@@ -94,12 +100,6 @@ class BasePlot(ABC):
             self.ax.legend(title=self.settings.legend_title)
 
         return self.fig, axes
-
-    def get_figure(self):
-        """Return the figure, creating it if needed."""
-        if self.fig is None:
-            self.create_figure()
-        return self.fig
 
     def plot_on(self, other_plot: "BasePlot", *args, **kwargs):
         """Combine BasePlot classes in a hierarchy.
@@ -154,27 +154,20 @@ class BasePlot(ABC):
         return other_plot
 
     @abstractmethod
-    def plot(self, *args, **kwargs):
-        """Abstract method for plotting data."""
+    def build(self, *args, **kwargs):
         raise NotImplementedError("Plotting method must be implemented")
 
 
 class LinePlot(BasePlot):
     """Plot a line plot using seaborn."""
 
-    def plot(self, data: pd.DataFrame, **kwargs):
-        if self.fig is None:
-            self.create_figure()
-
+    def build(self, data: pd.DataFrame, **kwargs):
         sns.lineplot(data=data, ax=self.ax, **kwargs)
         return self.fig, self.ax
 
 
 class ComparePlot(BasePlot):
-    def plot(self, data: pd.DataFrame, x: str, y1: str, y2: str, **kwargs):
-        if self.fig is None:
-            self.create_figure()
-
+    def build(self, data: pd.DataFrame, x: str, y1: str, y2: str, **kwargs):
         compare = LinePlot(self.settings)
         self.plot_on(compare, data=data, x=x, y=y1, label=y1, **kwargs)
         self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
@@ -184,18 +177,14 @@ class ComparePlot(BasePlot):
 
 
 class BarWithDates(BasePlot):
-    def plot(self, data, x: str, y: str, interval: int = 1, **kwargs):
-        if self.fig is None:
-            self.create_figure()
+    def build(self, data, x: str, y: str, interval: int = 1, **kwargs):
         sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
         assert self.ax is not None, "No axes available for plotting"
         self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
 
 
 class VerticalDate(BasePlot):
-    def plot(self, date: str, label: str):
-        if self.fig is None:
-            self.create_figure()
+    def build(self, date: str, label: str):
         start_vaccination = pd.to_datetime(date).strftime("%Y-%m-%d")
         plt.axvline(
             x=start_vaccination,  # type: ignore
@@ -207,12 +196,9 @@ class VerticalDate(BasePlot):
 
 
 class ResidualPlot(BasePlot):
-    def plot(self, data, x: str, y: str, date: str, datelabel: str, interval: int = 1):
-        if self.fig is None:
-            self.create_figure()
-
+    def build(self, data, x: str, y: str, date: str, datelabel: str, interval: int = 1):
         barplot = BarWithDates(self.settings)
-        self.plot_on(barplot, data, x=x, y=y, interval=interval)
+        self.plot_on(barplot, data=data, x=x, y=y, interval=interval)
         vertical = VerticalDate(self.settings)
         self.plot_on(vertical, date=date, label=datelabel)
         plt.xticks(rotation=45)
@@ -222,7 +208,7 @@ class ResidualPlot(BasePlot):
 class HistogramPlot(BasePlot):
     """Plot a histogram using seaborn."""
 
-    def plot(
+    def build(
         self,
         data: np.ndarray,
         bins: Optional[int] = None,
@@ -252,9 +238,6 @@ class HistogramPlot(BasePlot):
         --------
         fig, ax : The created figure and axes
         """
-        if self.fig is None:
-            self.create_figure()
-
         # Calculate optimal bins if not specified
         if bins is None:
             bins = min(int(np.sqrt(len(data))), 50)  # Reasonable default
@@ -277,7 +260,7 @@ class HistogramPlot(BasePlot):
 class DistPlot(BasePlot):
     """Plot a parametric distribution."""
 
-    def plot(
+    def build(
         self,
         distribution: Any,
         x_range: Optional[Tuple[float, float]] = None,
@@ -310,9 +293,6 @@ class DistPlot(BasePlot):
         --------
         fig, ax : The created figure and axes
         """
-        if self.fig is None:
-            self.create_figure()
-
         x = self._estimate_x(distribution, samples, x_range)
 
         # Calculate probability density
@@ -432,6 +412,9 @@ class PlotFits(BasePlot):
             )
 
         return self.fig
+
+    def build(self, *args, **kwargs):
+        pass
 
     def _prepare_fits(
         self, fit_results: List[Result], max_fits: Optional[int] = None
