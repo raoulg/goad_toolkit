@@ -100,13 +100,67 @@ class BasePlot(ABC):
             self.create_figure()
         return self.fig
 
+    def plot_on(self, other_plot: "BasePlot", *args, **kwargs):
+        """Combine BasePlot classes in a hierarchy.
+
+        Parameters:
+        -----------
+        other_plot : BasePlot
+            The plot class to use
+        *args, **kwargs : Arguments to pass to the plot method
+
+        Returns:
+        --------
+        The used plot instance (after plotting)
+        """
+        # Create an instance of the plot class with our settings
+        # other_plot = plot_class(self.settings)
+
+        # Share our figure and axes
+        other_plot.fig = self.fig
+        other_plot.ax = self.ax
+
+        # Call the plot method with the provided arguments
+        other_plot.plot(*args, **kwargs)
+
+        # Return the plot in case further configuration is needed
+        return other_plot
+
+    def plot_on_axes(self, other_plot: "BasePlot", ax: Axes, *args, **kwargs):
+        """Use another plot class to plot on a specific axis within this figure.
+
+        Parameters:
+        -----------
+        other_plot : BasePlot
+            The plot class to use
+        ax : matplotlib.axes.Axes
+            The specific axes to plot on
+        *args, **kwargs : Arguments to pass to the plot method
+
+        Returns:
+        --------
+        The used plot instance (after plotting)
+        """
+
+        # Share our figure but use the provided axis
+        other_plot.fig = self.fig
+        other_plot.ax = ax
+
+        # Call the plot method with the provided arguments
+        other_plot.plot(*args, **kwargs)
+
+        # Return the plot in case further configuration is needed
+        return other_plot
+
     @abstractmethod
     def plot(self, *args, **kwargs):
         """Abstract method for plotting data."""
         raise NotImplementedError("Plotting method must be implemented")
 
+
 class LinePlot(BasePlot):
     """Plot a line plot using seaborn."""
+
     def plot(self, data: pd.DataFrame, **kwargs):
         if self.fig is None:
             self.create_figure()
@@ -114,18 +168,19 @@ class LinePlot(BasePlot):
         sns.lineplot(data=data, ax=self.ax, **kwargs)
         return self.fig, self.ax
 
+
 class ComparePlot(BasePlot):
     def plot(self, data: pd.DataFrame, x: str, y1: str, y2: str, **kwargs):
         if self.fig is None:
             self.create_figure()
 
         compare = LinePlot(self.settings)
-        compare.fig, compare.ax = self.fig, self.ax
-        compare.plot(data=data, x=x, y=y1, label=y1, **kwargs)
-        compare.plot(data=data, x=x, y=y2, label=y2, **kwargs)
+        self.plot_on(compare, data=data, x=x, y=y1, label=y1, **kwargs)
+        self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
         plt.xticks(rotation=45)
 
         return self.fig, self.ax
+
 
 class HistogramPlot(BasePlot):
     """Plot a histogram using seaborn."""
@@ -289,7 +344,6 @@ class FitPlotSettings:
     max_fits: Optional[int] = None
 
     def __repr__(self):
-
         return (
             f"FitPlotSettings(bins={self.bins},\n data_color={self.data_color},\n "
             f"best_likelihood_color={self.best_likelihood_color},\n "
@@ -396,9 +450,11 @@ class PlotFits(BasePlot):
                 grid_alpha=self.settings.grid_alpha,
             )
         )
-        hist_plot.fig, hist_plot.ax = self.fig, ax
-        hist_plot.plot(
-            data,
+        # hist_plot.fig, hist_plot.ax = self.fig, ax
+        self.plot_on_axes(
+            hist_plot,
+            data=data,
+            ax=ax,
             bins=fitplotsettings.bins,
             kde=False,
             color=fitplotsettings.data_color,
@@ -407,8 +463,15 @@ class PlotFits(BasePlot):
 
         # Overlay distribution
         kde_plot = DistPlot(PlotSettings())
-        kde_plot.fig, kde_plot.ax = self.fig, ax
-        kde_plot.plot(fit.frozen_dist, color=dist_color, label=fit.distribution)
+        # kde_plot.fig, kde_plot.ax = self.fig, ax
+        # kde_plot.plot(fit.frozen_dist, color=dist_color, label=fit.distribution)
+        self.plot_on_axes(
+            kde_plot,
+            ax=ax,
+            distribution=fit.frozen_dist,
+            color=dist_color,
+            label=fit.distribution,
+        )
 
     def _get_fit_color(self, fit: Any, fitplotsettings: "FitPlotSettings") -> str:
         if hasattr(fit, "best_likelihood") and fit.best_likelihood:
