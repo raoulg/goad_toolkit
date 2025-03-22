@@ -413,7 +413,7 @@ class PlotFits(BasePlot):
 
         return self.fig
 
-    def build(self, *args, **kwargs):
+    def build(self):
         pass
 
     def _prepare_fits(
