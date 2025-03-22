@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from scipy import stats
 
 

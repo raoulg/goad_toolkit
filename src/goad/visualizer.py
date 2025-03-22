@@ -1,15 +1,17 @@
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, List, Optional, Tuple
+
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Any
+import pandas as pd
 import seaborn as sns
 from loguru import logger
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+
 from goad.analytics import FitResult, Result
-from abc import ABC, abstractmethod
-import pandas as pd
-import matplotlib.dates as mdates
 
 
 @dataclass

@@ -1,9 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union, Any, List
-from goad.distributions import DistributionRegistry
+from typing import Any, List, Optional, Tuple, Union
+
 import numpy as np
-from scipy import stats
 from loguru import logger
+from scipy import stats
+
+from goad.distributions import DistributionRegistry
 
 
 @dataclass

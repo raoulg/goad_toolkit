@@ -2,6 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+
 class FileConfig(BaseModel):
     data_dir: Path = Path.home() / ".cache/mads_datasets/covid"
     filename: Path = Path("covid.csv")

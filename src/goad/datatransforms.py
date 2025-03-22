@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Type, TypeVar
-from tqdm import tqdm
 
 import pandas as pd
+from tqdm import tqdm
 
 T = TypeVar("T", bound="TransformBase")
 

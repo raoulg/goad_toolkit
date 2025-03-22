@@ -1,6 +1,7 @@
+from typing import Callable
+
 import numpy as np
 from scipy.optimize import minimize
-from typing import Callable
 
 
 def linear_model(x: np.ndarray, params: tuple | list[float]) -> np.ndarray:

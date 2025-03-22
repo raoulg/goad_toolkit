@@ -1,17 +1,13 @@
-from goad.datatransforms import (
-    Pipeline,
-    DiffValues,
-    ShiftValues,
-    SelectDataRange,
-    RollingAvg,
-    ZScaler,
-)
-from goad.config import FileConfig, DataConfig
 from abc import ABC, abstractmethod
-from goad.filehandler import FileHandler
-import pandas as pd
 from pathlib import Path
 from typing import Optional
+
+import pandas as pd
+
+from goad.config import DataConfig, FileConfig
+from goad.datatransforms import (DiffValues, Pipeline, RollingAvg,
+                                 SelectDataRange, ShiftValues, ZScaler)
+from goad.filehandler import FileHandler
 
 
 class DataProcessor(ABC):
