@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 from goad.analytics import FitResult, Result
 from abc import ABC, abstractmethod
 import pandas as pd
+import matplotlib.dates as mdates
 
 
 @dataclass
@@ -36,7 +37,7 @@ class PlotSettings:
 class BasePlot(ABC):
     """Base class for creating plots."""
 
-    def __init__(self, settings: PlotSettings):
+    def __init__(self, settings: PlotSettings, n_plots: Optional[int] = None):
         self.settings = settings
         self.fig = None
         self.ax = None
@@ -179,6 +180,42 @@ class ComparePlot(BasePlot):
         self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
         plt.xticks(rotation=45)
 
+        return self.fig, self.ax
+
+
+class BarWithDates(BasePlot):
+    def plot(self, data, x: str, y: str, interval: int = 1, **kwargs):
+        if self.fig is None:
+            self.create_figure()
+        sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
+        assert self.ax is not None, "No axes available for plotting"
+        self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
+
+
+class VerticalDate(BasePlot):
+    def plot(self, date: str, label: str):
+        if self.fig is None:
+            self.create_figure()
+        start_vaccination = pd.to_datetime(date).strftime("%Y-%m-%d")
+        plt.axvline(
+            x=start_vaccination,  # type: ignore
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=label,
+        )
+
+
+class ResidualPlot(BasePlot):
+    def plot(self, data, x: str, y: str, date: str, datelabel: str, interval: int = 1):
+        if self.fig is None:
+            self.create_figure()
+
+        barplot = BarWithDates(self.settings)
+        self.plot_on(barplot, data, x=x, y=y, interval=interval)
+        vertical = VerticalDate(self.settings)
+        self.plot_on(vertical, date=date, label=datelabel)
+        plt.xticks(rotation=45)
         return self.fig, self.ax
 
 
