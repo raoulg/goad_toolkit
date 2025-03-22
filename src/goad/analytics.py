@@ -156,7 +156,7 @@ class DistributionFitter:
 
             # Get parameter bounds
             bounds = self._get_bounds(data, dist_obj)
-            logger.debug(f"Bounds for {dist_name}: {bounds}")
+            # logger.info(f"Bounds for {dist_name}: {bounds}")
 
             # Perform the fit
             result = stats.fit(dist_obj.dist, data, method=method, bounds=tuple(bounds))
