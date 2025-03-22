@@ -2,16 +2,19 @@ import numpy as np
 from scipy.optimize import minimize
 from typing import Callable
 
-def linear_model(x: np.ndarray, params: tuple) -> np.ndarray:
+
+def linear_model(x: np.ndarray, params: tuple | list[float]) -> np.ndarray:
     """a basic linear model"""
     a, b = params
     yhat = a * x + b
     return yhat
 
-def mse(y: np.ndarray, yhat: np.ndarray) -> float:
+
+def mse(y: np.ndarray, yhat: np.ndarray):
     """mean squared error loss function"""
     squared_diff = (y - yhat) ** 2
     return np.mean(squared_diff)
+
 
 def train_model(
     X: np.ndarray,
@@ -19,7 +22,7 @@ def train_model(
     model_fn: Callable,
     loss_fn: Callable,
     params: list[float],
-    bounds=None
+    bounds=None,
 ) -> list[float]:
     def objective(params):
         yhat = model_fn(X, params)
@@ -27,3 +30,4 @@ def train_model(
 
     result = minimize(fun=objective, x0=params, bounds=bounds)
     return result.x
+
