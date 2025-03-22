@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version < '3.12'",
@@ -452,6 +453,7 @@ dev = [
     { name = "isort" },
     { name = "jupyter" },
     { name = "mypy" },
+    { name = "pyright" },
     { name = "ruff" },
 ]
 
@@ -473,6 +475,7 @@ dev = [
     { name = "isort", specifier = ">=6.0.1" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "mypy", specifier = ">=1.15.0" },
+    { name = "pyright", specifier = ">=1.1.397" },
     { name = "ruff", specifier = ">=0.11.0" },
 ]
 
@@ -527,7 +530,7 @@ name = "ipykernel"
 version = "6.29.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "appnope", marker = "platform_system == 'Darwin'" },
+    { name = "appnope", marker = "sys_platform == 'darwin'" },
     { name = "comm" },
     { name = "debugpy" },
     { name = "ipython" },
@@ -1194,6 +1197,15 @@ wheels = [
 ]
 
 [[package]]
+name = "nodeenv"
+version = "1.9.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/16/fc88b08840de0e0a72a2f9d8c6bae36be573e475a6326ae854bcc549fc45/nodeenv-1.9.1.tar.gz", hash = "sha256:6ec12890a2dab7946721edbfbcd91f3319c6ccc9aec47be7c7e6b7011ee6645f", size = 47437 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/1d/1b658dbd2b9fa9c4c9f32accbfc0205d532c8c6194dc0f2a4c0428e7128a/nodeenv-1.9.1-py2.py3-none-any.whl", hash = "sha256:ba11c9782d29c27c70ffbdda2d7415098754709be8a7056d79a737cd901155c9", size = 22314 },
+]
+
+[[package]]
 name = "notebook"
 version = "7.3.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1562,6 +1574,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/8b/1a/3544f4f299a47911c2ab3710f534e52fea62a633c96806995da5d25be4b2/pyparsing-3.2.1.tar.gz", hash = "sha256:61980854fd66de3a90028d679a954d5f2623e83144b5afe5ee86f43d762e5f0a", size = 1067694 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1c/a7/c8a2d361bf89c0d9577c934ebb7421b25dc84bf3a8e3ac0a40aed9acc547/pyparsing-3.2.1-py3-none-any.whl", hash = "sha256:506ff4f4386c4cec0590ec19e6302d3aedb992fdc02c761e90416f158dacf8e1", size = 107716 },
+]
+
+[[package]]
+name = "pyright"
+version = "1.1.397"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "nodeenv" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/23/cefa10c9cb198e0858ed0b9233371d62bca880337f628e58f50dfdfb12f0/pyright-1.1.397.tar.gz", hash = "sha256:07530fd65a449e4b0b28dceef14be0d8e0995a7a5b1bb2f3f897c3e548451ce3", size = 3818998 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/b5/98ec41e1e0ad5576ecd42c90ec363560f7b389a441722ea3c7207682dec7/pyright-1.1.397-py3-none-any.whl", hash = "sha256:2e93fba776e714a82b085d68f8345b01f91ba43e1ab9d513e79b70fc85906257", size = 5693631 },
 ]
 
 [[package]]
@@ -2018,7 +2043,7 @@ name = "tqdm"
 version = "4.67.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "platform_system == 'Windows'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737 }
 wheels = [
