@@ -10,6 +10,17 @@ def linear_model(x: np.ndarray, params: tuple | list[float]) -> np.ndarray:
     return yhat
 
 
+def logistic(x: np.ndarray, k, x0, L=1.0) -> np.ndarray:
+    """
+    Parameters:
+    x: Independent variable
+    k: Growth rate
+    x0: Midpoint (inflection point)
+    L: Upper limit (default 1)
+    """
+    return L / (1 + np.exp(-k * (x - x0)))
+
+
 def mse(y: np.ndarray, yhat: np.ndarray):
     """mean squared error loss function"""
     squared_diff = (y - yhat) ** 2
