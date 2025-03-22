@@ -1,8 +1,15 @@
 from goad.config import DataConfig, FileConfig
 from goad.dataprocessor import CovidDataProcessor
 from goad.models import linear_model, mse, train_model
+from goad.analytics import DistributionFitter
 from loguru import logger
-from goad.visualizer import ComparePlot, PlotSettings, ResidualPlot
+from goad.visualizer import (
+    ComparePlot,
+    PlotSettings,
+    ResidualPlot,
+    PlotFits,
+    FitPlotSettings,
+)
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -59,6 +66,7 @@ def model(data: "pd.DataFrame") -> "pd.DataFrame":
     logger.success(f"Fitted model with parameters: {params}")
     yhat = linear_model(X, params)
     data["Predicted deaths"] = yhat
+    data["residual"] = data["deaths_shifted"].values - yhat
     return data
 
 
@@ -77,7 +85,6 @@ def viz_residual(data):
         figsize=(12, 6), title="Residual Plot", xlabel="dates", ylabel="error"
     )
     resplot = ResidualPlot(settings)
-    data["residual"] = data["deaths_shifted"].values - data["Predicted deaths"].values
     fig, _ = resplot.plot(
         data=data,
         x="date",
@@ -90,12 +97,30 @@ def viz_residual(data):
     save_fig(fig, imgpath)
 
 
+def viz_distribution_fit(data):
+    fitter = DistributionFitter()
+    fits = fitter.fit(data["residual"], discrete=False)
+    best = fitter.best(fits)
+    logger.success(f"Best fit: {best}")
+    settings = PlotSettings(
+        figsize=(12, 6), title="Residuals", xlabel="error", ylabel="probability"
+    )
+    fitplotsettings = FitPlotSettings(bins=30, max_fits=3)
+    fitplotter = PlotFits(settings)
+    fig = fitplotter.plot(
+        data=data["residual"], fit_results=fits, fitplotsettings=fitplotsettings
+    )
+    imgpath = "data/result/distribution_fit.png"
+    save_fig(fig, imgpath)
+
+
 def main():
     data = preprocess()
     viz_zscores(data)
     data = model(data)
     viz_model(data)
     viz_residual(data)
+    viz_distribution_fit(data)
     logger.success("All done!")
 
 
