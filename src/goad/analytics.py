@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union, Any
+from typing import Optional, Tuple, Union, Any, List
 from goad.distributions import DistributionRegistry
 import numpy as np
 from scipy import stats
@@ -27,6 +27,10 @@ class FitResult:
     message: str = "Optimization successful"
     log_likelihood: Optional[float] = None
     kstest: Optional[KSTestResult] = None
+    best_likelihood: Optional[bool] = (
+        None  # Indicates if this is the best fit by likelihood
+    )
+    best_ks: Optional[bool] = None  # Indicates if this is the best fit by KS test
 
     def __str__(self) -> str:
         """String representation focused on distribution and parameters."""
@@ -40,7 +44,13 @@ class FitResult:
             if self.log_likelihood is not None
             else ""
         )
-        return f"Fit({self.distribution}: params={self.params}{ll_info}{ks_info})"
+        best_info = ""
+        if self.best_likelihood:
+            best_info += " (Best Likelihood)"
+        if self.best_ks:
+            best_info += " (Best KS)"
+
+        return f"Fit({self.distribution}: params={self.params}{ll_info}{ks_info}{best_info})"
 
 
 @dataclass
@@ -146,6 +156,7 @@ class DistributionFitter:
 
             # Get parameter bounds
             bounds = self._get_bounds(data, dist_obj)
+            logger.debug(f"Bounds for {dist_name}: {bounds}")
 
             # Perform the fit
             result = stats.fit(dist_obj.dist, data, method=method, bounds=tuple(bounds))
@@ -180,20 +191,97 @@ class DistributionFitter:
                 distribution=dist_name, message=f"Fitting failed: {str(e)}"
             )
 
+    def _mark_best_fits(self, fits: List[Result], criterion: str) -> List[Result]:
+        """
+        Mark the best fits in a list of fit results.
+
+        Args:
+            fits: List of fit results to analyze
+            criterion: Selection criterion ('likelihood', 'ks', or 'combined')
+
+        Returns:
+            The same list with best_likelihood and best_ks attributes updated for successful fits
+        """
+        # Find best likelihood fit
+        best_likelihood_value = float("-inf")
+        best_likelihood_fit = None
+
+        # Find best KS test fit
+        best_ks_value = 0
+        best_ks_fit = None
+
+        # Find the best fits without creating a filtered list
+        for fit in fits:
+            if isinstance(fit, FitResult):
+                # Check for best likelihood
+                fit_likelihood = (
+                    fit.log_likelihood
+                    if fit.log_likelihood is not None
+                    else float("-inf")
+                )
+                if fit_likelihood > best_likelihood_value:
+                    best_likelihood_value = fit_likelihood
+                    best_likelihood_fit = fit
+
+                # Check for best KS test
+                fit_ks = fit.kstest.p_value if fit.kstest else 0
+                if fit_ks > best_ks_value:
+                    best_ks_value = fit_ks
+                    best_ks_fit = fit
+
+        # Only mark if we found best fits
+        if best_likelihood_fit is not None and best_ks_fit is not None:
+            # Mark based on criterion
+            if criterion == "likelihood":
+                # Mark only likelihood best
+                for fit in fits:
+                    if isinstance(fit, FitResult):
+                        fit.best_likelihood = (
+                            fit.distribution == best_likelihood_fit.distribution
+                        )
+
+            elif criterion == "ks":
+                # Mark only KS best
+                for fit in fits:
+                    if isinstance(fit, FitResult):
+                        fit.best_ks = fit.distribution == best_ks_fit.distribution
+
+            elif criterion == "combined":
+                # Mark both
+                for fit in fits:
+                    if isinstance(fit, FitResult):
+                        fit.best_likelihood = (
+                            fit.distribution == best_likelihood_fit.distribution
+                        )
+                        fit.best_ks = fit.distribution == best_ks_fit.distribution
+            else:
+                raise ValueError(f"Unknown criterion '{criterion}'")
+
+        # Return the original list
+        return fits
+
     def fit(
-        self, data: np.ndarray, discrete: bool, method: str = "mle"
+        self,
+        data: np.ndarray,
+        discrete: bool,
+        method: str = "mle",
+        criterion: str = "combined",
     ) -> list[Result]:
         """
-        Fit all registered distributions to data and return results.
+        Fit all registered distributions to data, mark the best fits, and return results.
 
         Args:
             data: Data to fit the distribution to
+            discrete: Whether to fit discrete (True) or continuous (False) distributions
             method: Fitting method (default: 'mle')
-            fit_discrete_distributions: Whether to fit discrete distributions (default: True)
+            criterion: Selection criterion ('likelihood', 'ks', or 'combined') for marking best fits
 
         Returns:
-            List of Result objects (either FitResult or FailedFit)
+            List of Result objects (either FitResult or FailedFit) with best fits marked
         """
+        if criterion not in ["likelihood", "ks", "combined"]:
+            raise ValueError(f"Unknown criterion '{criterion}'")
+
         results = []
         for dist_name in self.registry.get_names():
             dist_obj = self.registry.get_distribution(dist_name)
@@ -203,48 +291,29 @@ class DistributionFitter:
 
             if not discrete and not dist_obj.is_discrete:
                 results.append(self.fit_distribution(dist_name, data, method))
+
+        # Mark the best fits based on criterion
+        self._mark_best_fits(results, criterion)
+
         return results
 
-    def best(
-        self,
-        data: np.ndarray,
-        discrete: bool,
-        criterion: str,
-        method: str = "mle",
-    ) -> FitResult | tuple[FitResult, FitResult]:
-        """
-        Find the best fitting distribution.
-
-        Args:
-            data: Data to fit distributions to
-            method: Fitting method (default: 'mle')
-            criterion: Selection criterion ('likelihood', 'ks', or 'combined')
-
-        Returns:
-            Best SuccessfulFitResult or None if no successful fits
-        """
-        fits = self.fit(data=data, discrete=discrete, method=method)
-        succesful_fits = [fit for fit in fits if isinstance(fit, FitResult)]
-
-        # Select the best fit based on chosen criterion
-        if criterion == "likelihood":
-            # Use log-likelihood only
-            return max(succesful_fits, key=lambda fit: fit.log_likelihood or -np.inf)
-        elif criterion == "ks":
-            # Use KS p-value only (higher is better)
-            return max(
-                succesful_fits, key=lambda fit: fit.kstest.p_value if fit.kstest else 0
-            )
+    @staticmethod
+    def best(results: list[Result], criterion: str = "combined") -> list[Result]:
+        if criterion == "ks":
+            return [
+                fit for fit in results if isinstance(fit, FitResult) and fit.best_ks
+            ]
+        elif criterion == "likelihood":
+            return [
+                fit
+                for fit in results
+                if isinstance(fit, FitResult) and fit.best_likelihood
+            ]
         elif criterion == "combined":
-            likelihood = max(
-                succesful_fits, key=lambda fit: fit.log_likelihood or -np.inf
-            )
-            ks = max(
-                succesful_fits, key=lambda fit: fit.kstest.p_value if fit.kstest else 0
-            )
-            if likelihood.distribution == ks.distribution:
-                return likelihood
-            else:
-                return (likelihood, ks)
+            return [
+                fit
+                for fit in results
+                if isinstance(fit, FitResult) and (fit.best_likelihood or fit.best_ks)
+            ]
         else:
             raise ValueError(f"Unknown criterion '{criterion}'")
