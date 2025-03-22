@@ -35,12 +35,13 @@ class DataProcessor(ABC):
 class CovidDataProcessor(DataProcessor):
     def config_pipeline(self, dataconfig: DataConfig) -> None:
         self.pipeline.add(DiffValues, column="deaths")
-        self.pipeline.add(ShiftValues, column="deaths", period=dataconfig.period)
+        self.pipeline.add(ShiftValues, column="deaths", period=dataconfig.period, rename=True)
         self.pipeline.add(
             SelectDataRange,
             start_date=dataconfig.start_date,
             end_date=dataconfig.end_date,
         )
-        self.pipeline.add(RollingAvg, column="deaths", window=dataconfig.window)
-        self.pipeline.add(ZScaler, column="deaths")
-        self.pipeline.add(ZScaler, column="positivetests")
+        self.pipeline.add(RollingAvg, column="deaths_shifted", window=dataconfig.window)
+        self.pipeline.add(RollingAvg, column="positivetests", window=dataconfig.window)
+        self.pipeline.add(ZScaler, column="deaths_shifted", rename=True)
+        self.pipeline.add(ZScaler, column="positivetests", rename=True)

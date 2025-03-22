@@ -53,7 +53,12 @@ class ShiftValues(TransformBase):
         """Shift values in a column by a specified period."""
         column = kwargs.get("column")
         period = kwargs.get("period", 0)
-        data[column] = data[column].shift(period)
+        rename = kwargs.get("rename", False)
+        if rename:
+            colname = f"{column}_shifted"
+        else:
+            colname = column
+        data[colname] = data[column].shift(period)
         return data
 
 
@@ -148,7 +153,7 @@ class Pipeline:
             transform_class = transform_config["class"]
             params = transform_config["params"]
             transform = transform_class(name=name, **params)
-            result = transform(result)  # Using __call__ method
+            result = transform(result)
         return result
 
     def __getitem__(self, key: str) -> Dict[str, Any]:
