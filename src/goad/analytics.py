@@ -79,6 +79,10 @@ class DistributionFitter:
         """Initialize with a distribution registry."""
         self.registry = DistributionRegistry()
 
+    @property
+    def registry(self) -> list[str]:
+        return self._registry.get_names()
+
     def _get_bounds(self, data: np.ndarray, dist_obj) -> list[tuple]:
         """Generate parameter bounds estimates based on data characteristics."""
         # Calculate statistics for bounds
