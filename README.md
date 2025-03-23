@@ -1,5 +1,6 @@
 # GOAD🐐 is the GOAT - Goal Oriented Analysis of Data
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![image](https://shields.io/pypi/v/goad_toolkit.svg)](https://pypi.org/project/goad_toolkit/)
 
 <p align="center">
   <em>GOAD🐐 - When your data analysis is so fire🔥 it's got rizz✨</em>
