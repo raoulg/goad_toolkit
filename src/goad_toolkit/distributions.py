@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from scipy import stats
@@ -26,32 +26,44 @@ class Distribution:
 class DistributionRegistry:
     """Registry for statistical distributions with metadata."""
 
-    distributions: Dict[str, Distribution] = field(default_factory=dict)
+    _instance = None
 
-    def __post_init__(self):
+    def __new__(cls):
+        """Ensure only one instance of DistributionRegistry exists."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.initialized = False
+        return cls._instance
+
+    def __init__(self):
         """Initialize the registry with common distributions."""
-        self.register_distribution("norm", stats.norm, is_discrete=False, num_params=2)
-        self.register_distribution(
-            "uniform", stats.uniform, is_discrete=False, num_params=2
-        )
-        self.register_distribution(
-            "lognorm", stats.lognorm, is_discrete=False, num_params=3
-        )
-        self.register_distribution(
-            "poisson", stats.poisson, is_discrete=True, num_params=1
-        )
-        self.register_distribution(
-            "exponential", stats.expon, is_discrete=False, num_params=2
-        )
-        self.register_distribution(
-            "skewnorm", stats.skewnorm, is_discrete=False, num_params=3
-        )
-        self.register_distribution(
-            "gamma", stats.gamma, is_discrete=False, num_params=3
-        )
-        self.register_distribution(
-            "weibull", stats.weibull_min, is_discrete=False, num_params=3
-        )
+        if not self.initialized:
+            self.distributions: Dict[str, Distribution] = {}
+            self.register_distribution(
+                "norm", stats.norm, is_discrete=False, num_params=2
+            )
+            self.register_distribution(
+                "uniform", stats.uniform, is_discrete=False, num_params=2
+            )
+            self.register_distribution(
+                "lognorm", stats.lognorm, is_discrete=False, num_params=3
+            )
+            self.register_distribution(
+                "poisson", stats.poisson, is_discrete=True, num_params=1
+            )
+            self.register_distribution(
+                "exponential", stats.expon, is_discrete=False, num_params=2
+            )
+            self.register_distribution(
+                "skewnorm", stats.skewnorm, is_discrete=False, num_params=3
+            )
+            self.register_distribution(
+                "gamma", stats.gamma, is_discrete=False, num_params=3
+            )
+            self.register_distribution(
+                "weibull", stats.weibull_min, is_discrete=False, num_params=3
+            )
+            self.initialized = True
 
     def __repr__(self) -> str:
         """Detailed representation of the registry."""
