@@ -77,7 +77,7 @@ class DistributionFitter:
 
     def __init__(self) -> None:
         """Initialize with a distribution registry."""
-        self.registry = DistributionRegistry()
+        self._registry = DistributionRegistry()
 
     @property
     def registry(self) -> list[str]:
@@ -158,7 +158,7 @@ class DistributionFitter:
             FitResult or FailedFit
         """
         try:
-            dist_obj = self.registry.get_distribution(dist_name)
+            dist_obj = self._registry.get_distribution(dist_name)
 
             # Get parameter bounds
             bounds = self._get_bounds(data, dist_obj)
@@ -289,8 +289,8 @@ class DistributionFitter:
             raise ValueError(f"Unknown criterion '{criterion}'")
 
         results = []
-        for dist_name in self.registry.get_names():
-            dist_obj = self.registry.get_distribution(dist_name)
+        for dist_name in self._registry.get_names():
+            dist_obj = self._registry.get_distribution(dist_name)
 
             if discrete and dist_obj.is_discrete:
                 results.append(self.fit_distribution(dist_name, data, method))

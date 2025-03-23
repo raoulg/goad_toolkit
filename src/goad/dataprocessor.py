@@ -31,7 +31,9 @@ class DataProcessor(ABC):
 class CovidDataProcessor(DataProcessor):
     def config_pipeline(self, dataconfig: DataConfig) -> None:
         self.pipeline.add(DiffValues, column="deaths")
-        self.pipeline.add(ShiftValues, column="deaths", period=dataconfig.period, rename=True)
+        self.pipeline.add(
+            ShiftValues, column="deaths", period=dataconfig.period, rename=True
+        )
         self.pipeline.add(
             SelectDataRange,
             start_date=dataconfig.start_date,

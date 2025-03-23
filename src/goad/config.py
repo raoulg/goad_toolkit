@@ -10,6 +10,7 @@ class FileConfig(BaseModel):
         "https://raw.githubusercontent.com/mzelst/covid-19/master/data/rivm_by_day.csv"
     )
 
+
 class DataConfig(BaseModel):
     period: int = -14
     window: int = 7

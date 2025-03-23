@@ -11,7 +11,7 @@ def linear_model(x: np.ndarray, params: tuple | list[float]) -> np.ndarray:
     return yhat
 
 
-def logistic(x: np.ndarray, k, x0, L=1.0) -> np.ndarray:
+def logistic(x: np.ndarray, k, x0, limit=1.0) -> np.ndarray:
     """
     Parameters:
     x: Independent variable
@@ -19,7 +19,7 @@ def logistic(x: np.ndarray, k, x0, L=1.0) -> np.ndarray:
     x0: Midpoint (inflection point)
     L: Upper limit (default 1)
     """
-    return L / (1 + np.exp(-k * (x - x0)))
+    return limit / (1 + np.exp(-k * (x - x0)))
 
 
 def mse(y: np.ndarray, yhat: np.ndarray):
@@ -29,7 +29,7 @@ def mse(y: np.ndarray, yhat: np.ndarray):
 
 
 def train_model(
-    X: np.ndarray,
+    X: np.ndarray,  # noqa: N803
     y: np.ndarray,
     model_fn: Callable,
     loss_fn: Callable,
@@ -42,4 +42,3 @@ def train_model(
 
     result = minimize(fun=objective, x0=params, bounds=bounds)
     return result.x
-
