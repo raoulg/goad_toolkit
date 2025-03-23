@@ -1,6 +1,6 @@
 [project]
 name = "goad-toolkit"
-version = "0.1.3"
+version = "0.1.4"
 description = "An extensible toolkit for Goal Oriented Analysis of Data"
 readme = "README.md"
 authors = [
