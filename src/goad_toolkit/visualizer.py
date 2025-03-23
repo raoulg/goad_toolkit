@@ -178,14 +178,6 @@ class ComparePlot(BasePlot):
         return self.fig, self.ax
 
 
-class BarWithDates(BasePlot):
-    def build(self, data, x: str, y: str, interval: int = 1, **kwargs):
-        sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
-        if not self.ax:
-            raise ValueError("No axes available for plotting")
-        self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
-
-
 class VerticalDate(BasePlot):
     def build(self, date: str, label: str):
         start_vaccination = pd.to_datetime(date).strftime("%Y-%m-%d")
@@ -196,6 +188,37 @@ class VerticalDate(BasePlot):
             linewidth=2,
             label=label,
         )
+
+
+class ComparePlotDate(BasePlot):
+    def build(
+        self,
+        data: pd.DataFrame,
+        x: str,
+        y1: str,
+        y2: str,
+        date: str,
+        datelabel: str,
+        **kwargs,
+    ):
+        compare = LinePlot(self.settings)
+        self.plot_on(compare, data=data, x=x, y=y1, label=y1, **kwargs)
+        self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
+
+        vertical = VerticalDate(self.settings)
+        self.plot_on(vertical, date=date, label=datelabel)
+
+        plt.xticks(rotation=45)
+
+        return self.fig, self.ax
+
+
+class BarWithDates(BasePlot):
+    def build(self, data, x: str, y: str, interval: int = 1, **kwargs):
+        sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
+        if not self.ax:
+            raise ValueError("No axes available for plotting")
+        self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
 
 
 class ResidualPlot(BasePlot):
