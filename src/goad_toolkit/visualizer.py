@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple
 
+import matplotlib.category as mpc
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,7 +11,6 @@ import seaborn as sns
 from loguru import logger
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-import matplotlib.category as mpc
 
 from goad_toolkit.analytics import FitResult, Result
 

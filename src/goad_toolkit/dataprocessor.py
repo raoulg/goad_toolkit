@@ -5,14 +5,8 @@ from typing import Optional
 import pandas as pd
 
 from goad_toolkit.config import DataConfig, FileConfig
-from goad_toolkit.datatransforms import (
-    DiffValues,
-    Pipeline,
-    RollingAvg,
-    SelectDataRange,
-    ShiftValues,
-    ZScaler,
-)
+from goad_toolkit.datatransforms import (DiffValues, Pipeline, RollingAvg,
+                                         SelectDataRange, ShiftValues, ZScaler)
 from goad_toolkit.filehandler import FileHandler
 
 
