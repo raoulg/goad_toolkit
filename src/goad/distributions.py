@@ -53,6 +53,10 @@ class DistributionRegistry:
             "weibull", stats.weibull_min, is_discrete=False, num_params=3
         )
 
+    def __repr__(self) -> str:
+        """Detailed representation of the registry."""
+        return f"DistributionRegistry({self.get_names()})"
+
     def register_distribution(
         self, name: str, dist, is_discrete: bool, num_params: int
     ):
