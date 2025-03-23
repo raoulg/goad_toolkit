@@ -6,6 +6,8 @@
   <em>GOAD🐐 - When your data analysis is so fire🔥 it's got rizz✨</em>
 </p>
 
+![GOAD🐐](img/goaded.png)
+
 GOAD🐐 is a flexible Python package for analyzing, transforming, and visualizing data with an emphasis on statistical distribution fitting and modular visualization components.
 
 ## 📊 Features
