@@ -28,7 +28,7 @@ class TransformBase(ABC):
             raise ValueError(f"Column '{column}' does not exist in the dataframe.")
 
     @abstractmethod
-    def transform(self, data: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    def transform(self, data: pd.DataFrame, *args, **kwargs) -> pd.DataFrame:
         """Transform the data."""
         pass
 
@@ -49,11 +49,14 @@ class TransformBase(ABC):
 class ShiftValues(TransformBase):
     """Shift values in a column by a specified period."""
 
-    def transform(self, data: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    def transform(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        period: int,
+        rename: Optional[bool] = False,
+    ) -> pd.DataFrame:
         """Shift values in a column by a specified period."""
-        column = kwargs.get("column")
-        period = kwargs.get("period", 0)
-        rename = kwargs.get("rename", False)
         if rename:
             colname = f"{column}_shifted"
         else:
@@ -65,10 +68,10 @@ class ShiftValues(TransformBase):
 class DiffValues(TransformBase):
     """Calculate the difference between consecutive values in a column."""
 
-    def transform(self, data: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    def transform(
+        self, data: pd.DataFrame, column: str, rename: bool = False
+    ) -> pd.DataFrame:
         """Calculate the difference between consecutive values in a column."""
-        column = kwargs.get("column")
-        rename = kwargs.get("rename", False)
         if rename:
             colname = f"{column}_diff"
         else:
@@ -81,23 +84,20 @@ class DiffValues(TransformBase):
 class SelectDataRange(TransformBase):
     """Select rows within a specified date range."""
 
-    def transform(self, data: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    def transform(
+        self, data: pd.DataFrame, start_date: str, end_date: str
+    ) -> pd.DataFrame:
         """Select rows within a specified date range."""
-        start_date = kwargs.get("start_date")
-        end_date = kwargs.get("end_date")
         return data.loc[start_date:end_date]
 
 
 class RollingAvg(TransformBase):
     """Calculate the rolling average of a column."""
 
-    def transform(self, data: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    def transform(
+        self, data: pd.DataFrame, column: str, window: int, rename: bool = False
+    ) -> pd.DataFrame:
         """Calculate the rolling average of a column."""
-        column = kwargs.get("column")
-        window = kwargs.get("window")
-        if window is None:
-            raise ValueError("Window size must be specified for rolling average")
-        rename = kwargs.get("rename", False)
         if rename:
             colname = f"{column}_rolling_avg"
         else:
@@ -110,10 +110,10 @@ class RollingAvg(TransformBase):
 class ZScaler(TransformBase):
     """Standardize the values in a column."""
 
-    def transform(self, data: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    def transform(
+        self, data: pd.DataFrame, column: str, rename: bool = False
+    ) -> pd.DataFrame:
         """Standardize the values in a column."""
-        column = kwargs.get("column")
-        rename = kwargs.get("rename", False)
         if rename:
             colname = f"{column}_zscore"
         else:
@@ -182,33 +182,3 @@ class Pipeline:
 
         steps_str = ",\n".join(steps)
         return f"Pipeline(\n{steps_str}\n)"
-
-
-# Example usage:
-if __name__ == "__main__":
-    # Sample dataframe
-    df = pd.DataFrame(
-        {
-            "deaths": [10, 15, 20, 25, 30, 35, 40],
-            "cases": [100, 150, 200, 250, 300, 350, 400],
-        }
-    )
-
-    # Create pipeline
-    pipeline = Pipeline()
-    pipeline.add(ShiftValues, name="shift_deaths", column="deaths", period=-14)
-    pipeline.add(ShiftValues, column="cases", period=-7)  # Auto-named
-
-    # Update parameters by name
-    pipeline["shift_deaths"] = {"period": -7}
-
-    # Print pipeline
-    print(pipeline)
-
-    # Apply pipeline transformations
-    result = pipeline.apply(df)
-
-    print("\nOriginal DataFrame:")
-    print(df)
-    print("\nTransformed DataFrame:")
-    print(result)
