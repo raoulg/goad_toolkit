@@ -5,7 +5,7 @@ import numpy as np
 from loguru import logger
 from scipy import stats
 
-from goad.distributions import DistributionRegistry
+from goad_toolkit.distributions import DistributionRegistry
 
 
 @dataclass

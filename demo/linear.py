@@ -1,9 +1,9 @@
-from goad.config import DataConfig, FileConfig
-from goad.dataprocessor import CovidDataProcessor
-from goad.models import linear_model, mse, train_model
-from goad.analytics import DistributionFitter
+from goad_toolkit.config import DataConfig, FileConfig
+from goad_toolkit.dataprocessor import CovidDataProcessor
+from goad_toolkit.models import linear_model, mse, train_model
+from goad_toolkit.analytics import DistributionFitter
 from loguru import logger
-from goad.visualizer import (
+from goad_toolkit.visualizer import (
     ComparePlot,
     PlotSettings,
     ResidualPlot,
@@ -55,7 +55,7 @@ def viz_zscores(data):
 
 
 def model(data: "pd.DataFrame") -> "pd.DataFrame":
-    X = data["positivetests"].values
+    X = data["positivetests"].values  # noqa: N806
     y = data["deaths"].values
     assert isinstance(X, np.ndarray)
     assert isinstance(y, np.ndarray)

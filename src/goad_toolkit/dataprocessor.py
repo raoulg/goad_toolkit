@@ -4,10 +4,16 @@ from typing import Optional
 
 import pandas as pd
 
-from goad.config import DataConfig, FileConfig
-from goad.datatransforms import (DiffValues, Pipeline, RollingAvg,
-                                 SelectDataRange, ShiftValues, ZScaler)
-from goad.filehandler import FileHandler
+from goad_toolkit.config import DataConfig, FileConfig
+from goad_toolkit.datatransforms import (
+    DiffValues,
+    Pipeline,
+    RollingAvg,
+    SelectDataRange,
+    ShiftValues,
+    ZScaler,
+)
+from goad_toolkit.filehandler import FileHandler
 
 
 class DataProcessor(ABC):

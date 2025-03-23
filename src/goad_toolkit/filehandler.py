@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 from loguru import logger
 
-from goad.config import FileConfig
+from goad_toolkit.config import FileConfig
 
 
 class FileHandler:
