@@ -208,7 +208,6 @@ class ComparePlotDate(BasePlot):
         y2: str,
         date: str,
         datelabel: str,
-        interval: int = 1,
         **kwargs,
     ):
         compare = LinePlot(self.settings)
