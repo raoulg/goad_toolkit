@@ -18,7 +18,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "tqdm>=4.67.1",
 ]
-urls = {Github = "https://github.com/yourusername/your-repo"}
+urls = {Github = "https://github.com/raoulg/goad_toolkit"}
 
 [project.scripts]
 goad = "goad:main"
