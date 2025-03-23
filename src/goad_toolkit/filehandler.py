@@ -18,7 +18,7 @@ class FileHandler:
             filename = self.config.filename
         filepath = self.config.data_dir / "raw" / filename
         if not filepath.exists():
-            req = requests.get(self.config.url)
+            req = requests.get(self.config.url, timeout=10)
             with filepath.open("wb") as f:
                 f.write(req.content)
             logger.success(f"Downloaded data to {filepath}")

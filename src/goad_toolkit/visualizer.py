@@ -181,7 +181,8 @@ class ComparePlot(BasePlot):
 class BarWithDates(BasePlot):
     def build(self, data, x: str, y: str, interval: int = 1, **kwargs):
         sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
-        assert self.ax is not None, "No axes available for plotting"
+        if not self.ax:
+            raise ValueError("No axes available for plotting")
         self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
 
 
