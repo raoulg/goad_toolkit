@@ -10,6 +10,7 @@ import seaborn as sns
 from loguru import logger
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+import matplotlib.category as mpc
 
 from goad_toolkit.analytics import FitResult, Result
 
@@ -180,9 +181,17 @@ class ComparePlot(BasePlot):
 
 class VerticalDate(BasePlot):
     def build(self, date: str, label: str):
-        start_vaccination = pd.to_datetime(date).strftime("%Y-%m-%d")
+        datemark = pd.to_datetime(date)
+        try:
+            if not self.ax:
+                raise ValueError("No axes available for plotting")
+            converter = self.ax.xaxis.get_converter()
+            if isinstance(converter, mpc.StrCategoryConverter):
+                datemark = datemark.strftime("%Y-%m-%d")
+        except AttributeError:
+            logger.error("No converter found")
         plt.axvline(
-            x=start_vaccination,  # type: ignore
+            x=datemark,  # type: ignore
             color="red",
             linestyle="--",
             linewidth=2,
@@ -199,6 +208,7 @@ class ComparePlotDate(BasePlot):
         y2: str,
         date: str,
         datelabel: str,
+        interval: int = 1,
         **kwargs,
     ):
         compare = LinePlot(self.settings)
