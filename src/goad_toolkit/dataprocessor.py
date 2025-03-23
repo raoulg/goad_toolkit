@@ -27,10 +27,13 @@ class DataProcessor(ABC):
         pass
 
     def process(
-        self, filename: Optional[Path] = None, raw: bool = True
+        self, filename: Optional[Path] = None, raw: bool = True, save: bool = False
     ) -> pd.DataFrame:
         df = self.filehandler.load(filename, raw)
         result = self.pipeline.apply(df)
+        if save:
+            filename = filename or self.filehandler.config.filename
+            self.filehandler.save(result, filename)
         return result
 
 
