@@ -22,12 +22,12 @@ GOAD🐐 is a flexible Python package for analyzing, transforming, and visualizi
 ### Installation
 Using [uv](https://docs.astral.sh/uv/):
 ```bash
-uv install goad
+uv install goad-toolkit
 ```
 
 Or, if you prefer your dependencies to be installed 100x slower, with pip:
 ```bash
-pip install goad
+pip install goad-toolkit
 ```
 
 ## 📋 Demo: Linear Model Analysis
@@ -53,7 +53,7 @@ The main strenght of this module is not that these elements are there (even thou
 GOAD🐐 provides a pipeline approach to transform your data:
 
 ```python
-from goad.datatransforms import Pipeline, ShiftValues, ZScaler
+from goad_toolkit.datatransforms import Pipeline, ShiftValues, ZScaler
 
 # Create a pipeline
 pipeline = Pipeline()
@@ -95,7 +95,7 @@ class ZScaler(TransformBase):
 GOAD🐐 visualization system is built on a composable architecture that allows you to build complex plots by combining simpler components:
 
 ```python
-from goad.visualizer import PlotSettings, ResidualPlot
+from goad_toolkit.visualizer import PlotSettings, ResidualPlot
 
 # Create plot settings
 plotsettings = PlotSettings(
@@ -133,8 +133,8 @@ It is also easier to reuse components in different contexts.
 GOAD🐐 includes tools for fitting statistical distributions to your data:
 
 ```python
-from goad.analytics import DistributionFitter
-from goad.visualizer import PlotSettings, FitPlotSettings, PlotFits
+from goad_toolkit.analytics import DistributionFitter
+from goad_toolkit.visualizer import PlotSettings, FitPlotSettings, PlotFits
 
 fitter = DistributionFitter()
 fits = fitter.fit(data["residual"], discrete=False) # we have to decide if the data is discrete or not
@@ -158,7 +158,7 @@ The plots are sorted by log-likelihood, which means there is no good fit with a 
 You can easily register new distributions:
 
 ```python
-from goad.distributions import DistributionRegistry
+from goad_toolkit.distributions import DistributionRegistry
 from scipy import stats
 
 # Create registry
@@ -173,7 +173,7 @@ registry.register_distribution(
 )
 
 # Now it will be used automatically in the  DistributionFitter for discrete fits
-from goad.analytics import DistributionFitter
+from goad_toolkit.analytics import DistributionFitter
 fitter = DistributionFitter()
 print(fitter.registry) # shows all registered distributions
 ```
@@ -185,7 +185,7 @@ print(fitter.registry) # shows all registered distributions
 GOAD🐐 has a powerful plotting system that allows you to combine plot elements:
 
 ```python
-from goad.visualizer import BasePlot, LinePlot, BarWithDates, VerticalDate
+from goad_toolkit.visualizer import BasePlot, LinePlot, BarWithDates, VerticalDate
 
 # Use a base plot to create a composite
 class MyCompositePlot(BasePlot):
