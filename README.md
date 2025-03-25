@@ -10,6 +10,8 @@
 
 GOAD🐐 is a flexible Python package for analyzing, transforming, and visualizing data with an emphasis on statistical distribution fitting and modular visualization components.
 
+> with thanks to my daughters for the genz slang!
+
 ## 📊 Features
 
 - **Composable & extendable plotting system** - Build complex visualizations by combining simple components. You can extend the existing components with your own.

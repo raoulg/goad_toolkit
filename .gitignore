@@ -11,3 +11,4 @@ wheels/
 .aider*
 dev/
 data/**
+.DS_Store
