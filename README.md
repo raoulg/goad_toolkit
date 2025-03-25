@@ -26,7 +26,7 @@ GOAD🐐 is a flexible Python package for analyzing, transforming, and visualizi
 ### Installation
 Using [uv](https://docs.astral.sh/uv/):
 ```bash
-uv install goad-toolkit
+uv add goad-toolkit
 ```
 
 Or, if you prefer your dependencies to be installed 100x slower, with pip:
