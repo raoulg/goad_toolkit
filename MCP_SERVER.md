@@ -103,13 +103,13 @@ You pin a version with `GOAD_REF` — a git ref (branch, tag, or commit). That o
 selects both the script (in the URL) and the docs it fetches (inside the script), so a whole
 cohort runs exactly the same thing and the two cannot drift apart.
 
-> **Note:** the docs and this server land in **v0.2.0**. Until that tag exists, point
-> `GOAD_REF` at the branch (`feat/docs-and-mcp`) or work from a local clone (see below).
+> **Note:** the docs and this server land in **v0.2.2**. 
+> You can also point `GOAD_REF` to a branch or work from a local clone (see below).
 
 ### Claude Code
 
 ```bash
-claude mcp add goad -e GOAD_REF=v0.2.0 -- \
+claude mcp add goad -e GOAD_REF=v0.2.2 -- \
   sh -c 'uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py'
 ```
 
@@ -123,7 +123,7 @@ Add to `.cursor/mcp.json` (per-project) or `~/.cursor/mcp.json` (global):
     "goad": {
       "command": "sh",
       "args": ["-c", "uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py"],
-      "env": { "GOAD_REF": "v0.2.0" }
+      "env": { "GOAD_REF": "v0.2.2" }
     }
   }
 }
@@ -137,7 +137,7 @@ Add to `~/.codex/config.toml`:
 [mcp_servers.goad]
 command = "sh"
 args = ["-c", "uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py"]
-env = { GOAD_REF = "v0.2.0" }
+env = { GOAD_REF = "v0.2.2" }
 ```
 
 ### Claude Desktop
@@ -151,7 +151,7 @@ app:
     "goad": {
       "command": "sh",
       "args": ["-c", "uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py"],
-      "env": { "GOAD_REF": "v0.2.0" }
+      "env": { "GOAD_REF": "v0.2.2" }
     }
   }
 }
@@ -187,7 +187,7 @@ add with the new tag:
 
 ```bash
 claude mcp remove goad -s user
-claude mcp add goad -s user -e GOAD_REF=v0.2.0 -- \
+claude mcp add goad -s user -e GOAD_REF=v0.2.2 -- \
   sh -c 'uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py'
 ```
 
