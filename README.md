@@ -43,6 +43,23 @@ Or, if you prefer your dependencies to be installed 100x slower, with pip:
 pip install goad-toolkit
 ```
 
+Add the `parquet` extra if you want to read and write parquet files:
+```bash
+uv add "goad-toolkit[parquet]"
+```
+
+### Command line
+
+The install ships a `goad` command that fits every distribution in the registry to one column
+of a csv or parquet file and prints the fits, ranked by log-likelihood:
+
+```bash
+goad data/residuals.csv residual
+```
+
+Use `--discrete` for count data, `--criterion {likelihood,ks,combined}` to pick which fits are
+marked best, and `goad --help` for the rest.
+
 ## 📋 Demo: Linear Model Analysis
 
 GOAD🐐 includes a comprehensive [demo](demo/linear.py) that shows how to use its components together.
@@ -129,7 +146,7 @@ class ComparePlot(BasePlot):
         compare = LinePlot(self.settings)
         self.plot_on(compare, data=data, x=x, y=y1, label=y1, **kwargs)
         self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
-        plt.xticks(rotation=45)
+        self.ax.tick_params(axis="x", rotation=45)
 
         return self.fig, self.ax
 
@@ -185,11 +202,14 @@ registry.register_distribution(
     num_params=2
 )
 
-# Now it will be used automatically in the  DistributionFitter for discrete fits
+# Hand the registry to the fitter to use your families
 from goad_toolkit.analytics import DistributionFitter
-fitter = DistributionFitter()
+fitter = DistributionFitter(registry)
 print(fitter.registry) # shows all registered distributions
 ```
+
+Registrations belong to the registry you made them on, so a fitter built without one
+(`DistributionFitter()`) uses a fresh registry with only the shipped families.
 
 
 

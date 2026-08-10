@@ -14,6 +14,8 @@ class FileConfig(BaseModel):
     data_dir: Path = Path.home() / ".cache/mads_datasets/covid"
     filename: Path = Path("covid.csv")
     url: str = "https://raw.githubusercontent.com/mzelst/covid-19/master/data/rivm_by_day.csv"
+    date_column: Optional[str] = "date"
+    date_index: bool = True
 
 class DataConfig(BaseModel):
     period: int = -14
@@ -21,6 +23,9 @@ class DataConfig(BaseModel):
     start_date: str = "2020-10-01"
     end_date: str = "2021-06-01"
 ```
+
+`date_column` names the column parsed as dates; `None` for data without a time axis.
+`date_index` decides whether that column becomes the index.
 
 `DataConfig` holds the tuning knobs a pipeline reads. Subclass it for your own analysis
 rather than passing loose numbers into `Pipeline.add`.
@@ -30,6 +35,13 @@ rather than passing loose numbers into `Pipeline.add`.
 ## 8.2 `goad_toolkit.filehandler`
 
 ```python
+READERS: dict[str, Callable[[Path], pd.DataFrame]]      # ".csv", ".parquet"
+
+def reader_for(path: Path) -> Callable[[Path], pd.DataFrame]
+def write_frame(data: pd.DataFrame, path: Path) -> None
+def parse_dates(data: pd.DataFrame, date_column: Optional[str],
+                as_index: bool) -> pd.DataFrame
+
 class FileHandler:
     def __init__(self, config: FileConfig)
     def download(self, filename: Optional[Path] = None) -> None
@@ -41,8 +53,13 @@ class FileHandler:
 - Creates `data_dir`, `data_dir/raw` and `data_dir/processed` on construction.
 - `load(raw=True)` reads from `raw/` and downloads first if the file is missing;
   `load(raw=False)` reads from `processed/`.
-- **`load` currently assumes a CSV with a `date` column, parsed as dates and used as the
-  index.** Other shapes need a subclass overriding `load`.
+- The reader and writer follow the file suffix: `.csv` and `.parquet`. Anything else raises a
+  `ValueError` naming the supported suffixes. Parquet needs `pyarrow`, installed with the
+  `parquet` extra: `uv add "goad-toolkit[parquet]"`.
+- Date handling follows `FileConfig`: `date_column` is parsed as dates and, when
+  `date_index` is true, moved into the index. A frame whose dates already *are* the index is
+  accepted too, so a `save` → `load` round trip keeps its shape. A missing `date_column`
+  raises a `ValueError` listing the columns that are there.
 
 ---
 
@@ -109,7 +126,7 @@ class Distribution:
     is_discrete: bool
     num_params: int
 
-class DistributionRegistry:     # process-wide singleton
+class DistributionRegistry:
     def register_distribution(self, name: str, dist, is_discrete: bool, num_params: int)
     def get_distribution(self, name: str) -> Distribution
     def get_names(self) -> List[str]
@@ -117,7 +134,8 @@ class DistributionRegistry:     # process-wide singleton
 ```
 
 Registered by default: `norm`, `uniform`, `lognorm`, `poisson`, `exponential`, `skewnorm`,
-`gamma`, `weibull`.
+`gamma`, `weibull`. Every instance starts from that set, so a registration is scoped to the
+registry you made it on — hand that registry to `DistributionFitter(registry)` to use it.
 
 ---
 
@@ -156,7 +174,9 @@ Result = Union[FitResult, FailedFit]
 
 ```python
 class DistributionFitter:
-    registry: list[str]                                     # property
+    def __init__(self, registry: Optional[DistributionRegistry] = None)
+
+    registry: list[str]                                     # property, the names
 
     def fit(self, data: np.ndarray, discrete: bool,
             method: str = "mle",
@@ -255,24 +275,46 @@ class PlotFits(BasePlot):
              fitplotsettings: FitPlotSettings) -> Figure
 ```
 
+Every `build` returns `(self.fig, self.ax)`, and every plot draws on `self.ax` / `self.fig`
+rather than on matplotlib's current axes, so a layer placed with `plot_on_axes` lands on the
+axis it was handed.
+
 `PlotFits` overrides `plot` rather than `build`, because the panel count depends on the fit
 results. `HistogramPlot` uses `stat="density"` so a pdf overlays correctly; `DistPlot` takes a
 **frozen** distribution and falls back to `pmf` when there is no `pdf`.
 
 ---
 
-## 8.9 Rough edges worth knowing
+## 8.9 `goad_toolkit.cli`
 
-- `BarWithDates.build` and `VerticalDate.build` return `None`; every other `build` returns
-  `(fig, ax)`.
-- Several plots call module-level `plt.*` functions, which act on matplotlib's current axes
-  rather than `self.ax`. Inside a `plot_on` chain this is the axis you want; when composing
-  panels by hand, prefer `plot_on_axes`.
-- `DistributionRegistry` is a process-wide singleton — registrations persist for the life of
-  the session and cannot be undone without a restart.
-- `FileHandler.load` hardcodes CSV with a `date` index column.
-- `pyproject.toml` declares a console script `goad = "goad:main"`; there is no such module in
-  the package.
+The `goad` console script fits every family in the registry to one column and prints the fits
+ranked by log-likelihood.
+
+```bash
+goad data/residuals.parquet residual
+goad data/counts.csv events --discrete --criterion ks
+```
+
+```python
+def parse_args(argv: List[str] | None = None) -> argparse.Namespace
+def load_column(file: Path, column: str) -> np.ndarray    # dropna, as an array
+def format_results(results: List[Result]) -> str
+def main(argv: List[str] | None = None) -> None
+```
+
+`--discrete` fits the discrete families instead of the continuous ones; `--criterion` is one
+of `likelihood`, `ks`, `combined`; `--method` is passed to `scipy.stats.fit`.
+
+---
+
+## 8.10 Rough edges worth knowing
+
+- `PlotFits` overrides `plot` rather than `build`; its `build` is a no-op. It is the one
+  exception to the `build` contract.
+- Fits that fail come back as `FailedFit` values in the result list rather than raising, so
+  a list of results can contain both kinds and needs an `isinstance` check.
+- `Pipeline.apply` copies the frame once and then mutates that copy in place, so transforms
+  see each other's columns — the order you add steps in matters.
 
 ---
 

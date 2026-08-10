@@ -75,9 +75,13 @@ Result = Union[FitResult, FailedFit]
 class DistributionFitter:
     """Class to fit distributions from a registry to data."""
 
-    def __init__(self) -> None:
-        """Initialize with a distribution registry."""
-        self._registry = DistributionRegistry()
+    def __init__(self, registry: Optional[DistributionRegistry] = None) -> None:
+        """Initialize with a distribution registry.
+
+        Pass a registry to fit a custom set of families; a fresh registry with
+        the shipped families is used otherwise.
+        """
+        self._registry = registry if registry is not None else DistributionRegistry()
 
     @property
     def registry(self) -> list[str]:

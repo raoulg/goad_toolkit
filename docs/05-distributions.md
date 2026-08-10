@@ -45,11 +45,17 @@ Two things to know before you rely on it:
 
 - **`num_params` must be right.** It selects the bounds template the fitter builds (see §5.3),
   so a wrong count produces a confusing optimisation failure rather than a clear error.
-- **The registry is a process-wide singleton.** `DistributionRegistry()` returns the same
-  object every time, and `__init__` is a no-op after the first call. So a registration in one
-  cell affects every later fit in the session, and re-running the registration cell does
-  nothing surprising but also does not reset anything. If you need a clean slate, restart the
-  kernel.
+- **Registrations are scoped to the registry object.** Every `DistributionRegistry()` starts
+  from the shipped families, so a registration in one cell affects only the fits that use that
+  registry, and a fresh instance is your clean slate — no kernel restart needed. Pass the
+  registry you extended to the fitter:
+
+  ```python
+  fitter = DistributionFitter(registry)
+  ```
+
+  `DistributionFitter()` without an argument builds its own registry with the shipped
+  families.
 
 ## 5.3 `DistributionFitter`
 

@@ -98,7 +98,7 @@ class ComparePlot(BasePlot):
         line = LinePlot(self.settings)
         self.plot_on(line, data=data, x=x, y=y1, label=y1, **kwargs)
         self.plot_on(line, data=data, x=x, y=y2, label=y2, **kwargs)
-        plt.xticks(rotation=45)
+        self.ax.tick_params(axis="x", rotation=45)
         return self.fig, self.ax
 ```
 
@@ -113,7 +113,7 @@ class ResidualPlot(BasePlot):
     def build(self, data, x, y, date, datelabel, interval=1):
         self.plot_on(BarWithDates(self.settings), data=data, x=x, y=y, interval=interval)
         self.plot_on(VerticalDate(self.settings), date=date, label=datelabel)
-        plt.xticks(rotation=45)
+        self.ax.tick_params(axis="x", rotation=45)
         return self.fig, self.ax
 ```
 
@@ -205,17 +205,20 @@ scatter.plot_on(TrendLine(settings), data=df, x="weight", y="mpg", order=2)
 Grey data, one coloured layer carrying the message. That is guideline five, expressed as two
 lines of code.
 
-## 3.8 Known rough edges
+## 3.8 Two rules that keep compositions composable
 
-- `BarWithDates` and `VerticalDate` do not return `(fig, ax)` from `build`. Everything else
-  does. Do not rely on their return value.
-- `VerticalDate` and several compositions call `plt.*` module-level functions rather than
-  methods on `self.ax`, which means they act on matplotlib's *current* axes. Inside a
-  `plot_on` chain that is the axis you want; in a multi-panel figure built by hand it may not
-  be. When in doubt, use `plot_on_axes` and draw on the axis you were handed.
-- `PlotFits` overrides `plot` rather than `build`, because it needs to know how many panels
-  to create before the figure exists. Its `build` is a no-op. It is the exception, not a
-  pattern to copy.
+- **`build` returns `(self.fig, self.ax)`.** Every shipped plot does, layers included, so a
+  caller can keep working with the figure whichever piece it got back. Yours should too.
+- **Draw on `self.ax` and `self.fig`, never on `plt`.** Module-level calls like
+  `plt.xticks(...)` or `plt.axvline(...)` act on matplotlib's *current* axes, which is not
+  necessarily the axis your plot was handed — in a multi-panel figure it is usually the wrong
+  one. The explicit forms are `self.ax.tick_params(axis="x", rotation=45)`,
+  `self.ax.axvline(...)`, `self.fig.suptitle(...)`. Keeping to them is what makes
+  `plot_on_axes` reliable.
+
+`PlotFits` overrides `plot` rather than `build`, because it needs to know how many panels to
+create before the figure exists. Its `build` is a no-op. It is the exception, not a pattern to
+copy.
 
 ---
 

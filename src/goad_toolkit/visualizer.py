@@ -96,8 +96,8 @@ class BasePlot(ABC):
             if not self.settings.subplot_titles:  # Only set if no subplot titles
                 self.ax.set_title(self.settings.title)
         else:
-            plt.suptitle(self.settings.title, fontsize=16)
-            plt.tight_layout(rect=(0, 0, 1, 0.96))  # Make room for suptitle
+            self.fig.suptitle(self.settings.title, fontsize=16)
+            self.fig.tight_layout(rect=(0, 0, 1, 0.96))  # Make room for suptitle
 
         if self.settings.legend_title is not None:
             self.ax.legend(title=self.settings.legend_title)
@@ -174,29 +174,32 @@ class ComparePlot(BasePlot):
         compare = LinePlot(self.settings)
         self.plot_on(compare, data=data, x=x, y=y1, label=y1, **kwargs)
         self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
-        plt.xticks(rotation=45)
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+        self.ax.tick_params(axis="x", rotation=45)
 
         return self.fig, self.ax
 
 
 class VerticalDate(BasePlot):
     def build(self, date: str, label: str):
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
         datemark = pd.to_datetime(date)
         try:
-            if not self.ax:
-                raise ValueError("No axes available for plotting")
             converter = self.ax.xaxis.get_converter()
             if isinstance(converter, mpc.StrCategoryConverter):
                 datemark = datemark.strftime("%Y-%m-%d")
         except AttributeError:
             logger.error("No converter found")
-        plt.axvline(
+        self.ax.axvline(
             x=datemark,  # type: ignore
             color="red",
             linestyle="--",
             linewidth=2,
             label=label,
         )
+        return self.fig, self.ax
 
 
 class ComparePlotDate(BasePlot):
@@ -217,17 +220,20 @@ class ComparePlotDate(BasePlot):
         vertical = VerticalDate(self.settings)
         self.plot_on(vertical, date=date, label=datelabel)
 
-        plt.xticks(rotation=45)
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+        self.ax.tick_params(axis="x", rotation=45)
 
         return self.fig, self.ax
 
 
 class BarWithDates(BasePlot):
     def build(self, data, x: str, y: str, interval: int = 1, **kwargs):
-        sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
-        if not self.ax:
+        if self.ax is None:
             raise ValueError("No axes available for plotting")
+        sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
         self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
+        return self.fig, self.ax
 
 
 class ResidualPlot(BasePlot):
@@ -236,7 +242,9 @@ class ResidualPlot(BasePlot):
         self.plot_on(barplot, data=data, x=x, y=y, interval=interval)
         vertical = VerticalDate(self.settings)
         self.plot_on(vertical, date=date, label=datelabel)
-        plt.xticks(rotation=45)
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+        self.ax.tick_params(axis="x", rotation=45)
         return self.fig, self.ax
 
 

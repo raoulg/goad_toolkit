@@ -83,7 +83,8 @@ src/goad_toolkit/
 ├── distributions.py    # Distribution, DistributionRegistry
 ├── analytics.py        # DistributionFitter, FitResult, FailedFit, KSTestResult
 ├── models.py           # linear_model, logistic, mse, train_model
-└── visualizer.py       # PlotSettings + BasePlot and its subclasses, PlotFits
+├── visualizer.py       # PlotSettings + BasePlot and its subclasses, PlotFits
+└── cli.py              # the `goad` command: fit the registry to one column
 ```
 
 Plus, outside the package:

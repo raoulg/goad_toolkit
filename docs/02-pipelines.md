@@ -175,6 +175,16 @@ data = processor.process(save=True)   # and writes the result to data/processed/
 Subclasses implement exactly one method: `config_pipeline`. Everything else — the download,
 the directory creation, the raw/processed split, the save — is inherited.
 
+`FileConfig` also says how the file is read: the reader follows the suffix (`.csv` or
+`.parquet`), `date_column` names the column to parse as dates, and `date_index` decides
+whether it becomes the index. For a dataset without a time axis, set `date_column=None`.
+
+```python
+config = FileConfig(
+    data_dir=Path("data"), filename=Path("sales.parquet"), date_column="ordered_at"
+)
+```
+
 The pipeline's parameters come from a pydantic `DataConfig`, which means the tuning knobs of
 your analysis (the shift period, the smoothing window, the date range) live in one typed
 object rather than scattered as literals through the steps. When somebody asks "what happens

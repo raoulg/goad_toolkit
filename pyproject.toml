@@ -1,6 +1,6 @@
 [project]
 name = "goad-toolkit"
-version = "0.2.0"
+version = "0.2.1"
 description = "An extensible toolkit for Goal Oriented Analysis of Data"
 readme = "README.md"
 authors = [
@@ -20,8 +20,11 @@ dependencies = [
 ]
 urls = {Github = "https://github.com/raoulg/goad_toolkit"}
 
+[project.optional-dependencies]
+parquet = ["pyarrow>=19.0.0"]
+
 [project.scripts]
-goad = "goad:main"
+goad = "goad_toolkit.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -31,8 +34,15 @@ build-backend = "hatchling.build"
 dev = [
     "isort>=6.0.1",
     "jupyter>=1.1.1",
+    "pyarrow>=19.0.0",
     "pyright>=1.1.397",
+    "pytest>=8.3.5",
     "ruff>=0.11.0",
 ]
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "N", "C4", "DTZ", "PT", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert is the assertion mechanism in tests and the demo script
+"tests/**" = ["S101"]
+"demo/**" = ["S101"]
