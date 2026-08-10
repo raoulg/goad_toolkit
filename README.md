@@ -21,6 +21,15 @@ GOAD🐐 is a flexible Python package for analyzing, transforming, and visualizi
 > Before GOAD🐐 : mid data
 > After GOAD🐐 : data got infinity aura
 
+## 📖 Documentation
+
+Full documentation lives in [`docs/`](docs/README.md) — ten chapters covering the method, the
+pipeline and plot systems, the five families of visualisation, distribution fitting, models
+and residuals, and a visual-critique checklist.
+
+The same chapters are also available as an **MCP server**, so your coding assistant can coach
+you through an analysis instead of doing it for you. See [MCP_SERVER.md](MCP_SERVER.md).
+
 ## 🚀 Quick Start
 
 ### Installation
