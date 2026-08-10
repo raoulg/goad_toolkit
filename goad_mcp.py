@@ -497,6 +497,29 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
             "the specific pattern whose absence would settle it",
         ),
         (
+            "Did this question come from an idea about the world, or from a pattern you "
+            "already spotted in the data?",
+            "Both are legitimate — exploration is how most real questions are found, and a "
+            "course that only allowed pre-registered questions would forbid data analysis. "
+            "What is not legitimate is confirming a data-suggested pattern on the same data "
+            "that suggested it, where it is guaranteed to be there. Naming which kind of "
+            "question this is decides what evidence would count, and it is free now and "
+            "impossible later.",
+            "which of the two — and if it came from the data, the later period, other group, "
+            "or second measure it will be checked against",
+        ),
+        (
+            "If the answer turns out to be yes, what mechanism would explain it — and would "
+            "you have predicted it beforehand?",
+            "Evidence does not speak on its own. The same test result means something very "
+            "different for 'fewer messages get sent at 4am' (a mechanism everyone can name) "
+            "than for 'people on the 4th floor are grumpier' (none). Where no mechanism "
+            "exists, a striking result is more likely a confounder or a fluke than a "
+            "discovery — and knowing that BEFORE the test is what stops it becoming a story.",
+            "the mechanism, or an explicit 'none — so a positive result sends me looking for "
+            "a confounder rather than to the conclusion'",
+        ),
+        (
             "Who reads the answer, and how long do they have?",
             "Decides how much has to be visible in the picture versus how much can stay in "
             "your head.",
@@ -515,6 +538,16 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
             "If you cannot say it in a sentence, later aggregations will be wrong in ways "
             "that do not raise an error.",
             "the unit of observation, explicitly",
+        ),
+        (
+            "What is the unit your CLAIM is about — and is it the same as one row?",
+            "4000 messages written by 5 people is n=5 for any claim about people, not "
+            "n=4000. Rows that cluster inside a person are one observation measured many "
+            "times, and treating them as independent makes every difference look "
+            "overwhelming. The name for this is pseudoreplication and it is the most common "
+            "way a student analysis goes wrong.",
+            "the claim's unit, the row's unit, and whether they match — plus the count at "
+            "the claim's unit if they do not",
         ),
         (
             "Which columns were measured, and which were derived — by whom, and how?",
@@ -569,6 +602,14 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
             "Is anything multimodal — and if so, which hidden variable are you looking at?",
             "Two peaks usually means two populations mixed together.",
             "the candidate grouping variable",
+        ),
+        (
+            "How many INDEPENDENT units sit behind each group you intend to compare?",
+            "Three people in a group produce no summary stable enough to compare against "
+            "another group, however many rows they generated between them. And every set of "
+            "numbers has a maximum — so one group being 'highest' is arithmetic until the "
+            "counts say otherwise.",
+            "the count per group, at the claim's unit from stage 2 — not the row count",
         ),
     ],
     AnalysisStage.encoding: [
@@ -643,6 +684,17 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
             "That null is what your claim is measured against. Without it, any pattern is "
             "as good as any other.",
             "the null, stated concretely",
+        ),
+        (
+            "How many comparisons did you look at before settling on this one — including "
+            "the ones you abandoned?",
+            "With fifteen things you could have measured, the chance that at least one looks "
+            "striking by luck alone is better than even. The question is never 'is this "
+            "result surprising' but 'is the most surprising of many surprising', and those "
+            "have different answers. A result reported as the best of fifteen is honest; the "
+            "same result reported as a discovery is not.",
+            "how many were considered, and whether the finding was confirmed on data that "
+            "did not suggest it",
         ),
         (
             "If you shuffled the labels and re-measured, how often would you see something "
@@ -984,6 +1036,15 @@ CRITIQUE_ROWS: dict[CritiqueSection, list[StageRow]] = {
             "how the comparison is shown",
         ),
         (
+            "Is the claim 'A differs from B', or is it 'A is the highest'? And how many "
+            "units is each group built from?",
+            "Every set of numbers has a maximum, so something is always first — that is "
+            "arithmetic, not a finding. A ranking claim needs the whole ranking to be "
+            "stable, which with a handful of units per group it almost never is.",
+            "which kind of claim it is, the count per group, and — for a ranking — how often "
+            "the winner stays the winner under resampling",
+        ),
+        (
             "What is deliberately not shown, and would a reader want it?",
             "Sample size behind each bar, the points behind the mean, an axis that does not "
             "start at zero.",
@@ -1160,48 +1221,52 @@ async def goad_distribution_method(params: DistributionMethodInput) -> str:
         f"before knowing what family the data follows — is how findings get deleted. Full "
         f"chapter: {url}",
         "",
-        "1. **Look at it first, without summarising.** Histogram and ECDF. Symmetric or "
+        "1. **Count first.** How many observations, and how many INDEPENDENT ones? A fit to "
+        "thirty points is a suggestion; a fit to thirty points that came from three people "
+        "is a description of three people. Everything below is worth less than this number.",
+        "",
+        "2. **Look at it, without summarising.** Histogram and ECDF. Symmetric or "
         "skewed? Bounded? One peak or several? Multiple peaks usually mean two populations "
         "mixed, which is a grouping question, not a fitting one.",
         "",
-        "2. **Decide discrete or continuous, and commit.** Counts are discrete; durations "
+        "3. **Decide discrete or continuous, and commit.** Counts are discrete; durations "
         "are continuous. `DistributionFitter.fit(data, discrete=...)` will silently fit the "
         "wrong half of the registry if this is wrong.",
         "",
-        "3. **Say what you expect, before fitting.** Waiting times suggest exponential; "
+        "4. **Say what you expect, before fitting.** Waiting times suggest exponential; "
         "counts of rare events suggest Poisson; products of factors suggest lognormal; "
         "rank-frequency suggests a power law. A prediction you can be wrong about makes the "
         f"fit informative rather than decorative. ({url}#57-what-the-families-mean)",
         "",
-        "4. **Check the registry has the family you need, and register it if not.** The "
+        "5. **Check the registry has the family you need, and register it if not.** The "
         "shipped set has no pareto, no bernoulli, no negative binomial — so a power-law "
         "question fitted against the defaults will come back 'lognormal' and look "
         f"convincing. ({url}#52-the-registry)",
         "",
-        "5. **Fit the whole registry, not one family.** The comparison is the evidence. "
+        "6. **Fit the whole registry, not one family.** The comparison is the evidence. "
         "Failures come back as `FailedFit` values rather than exceptions, so one badly "
         "behaved family does not cost you the rest.",
         "",
-        "6. **Read KS and log-likelihood as two different questions.** Log-likelihood is "
+        "7. **Read KS and log-likelihood as two different questions.** Log-likelihood is "
         "about the bulk; KS is about the largest gap in the CDF and is comparatively blind "
         "in the tails. When they disagree, the shape is systematically off somewhere — go "
         f"find where. ({url}#54-ks-versus-log-likelihood)",
         "",
-        "7. **Look at the picture, then the tails specifically.** `PlotFits` ranks the "
+        "8. **Look at the picture, then the tails specifically.** `PlotFits` ranks the "
         "candidates and colours the two winners. Systematic deviation matters; bar-by-bar "
         "wobble does not. If the question is about extreme values, a histogram will not "
         f"settle it — use a qq-plot or an ECDF on log axes. ({url}#55-reading-plotfits)",
         "",
-        "8. **Only now decide what an outlier is.** A point at the 99.9th percentile of a "
+        "9. **Only now decide what an outlier is.** A point at the 99.9th percentile of a "
         "fitted exponential is expected in a sample of a few thousand; the same point is a "
         "five-sigma event under a normal fit. Separate 'could not have been produced by this "
         f"process' from 'unusual but possible'. ({url}#56-outliers-properly)",
         "",
-        "9. **Report what you removed, if anything** — how many, on what criterion, and what "
+        "10. **Report what you removed, if anything** — how many, on what criterion, and what "
         "the analysis looks like with them left in. An analysis that changes conclusion when "
         "three points are removed is a finding about those three points.",
         "",
-        "10. **If this was a residual, read the structure, not just the shape.** A skewed "
+        "11. **If this was a residual, read the structure, not just the shape.** A skewed "
         "residual means the model is systematically wrong in one direction; a residual with "
         "a step or a drift in it is an unmodelled mechanism, and locating *when* it starts "
         f"is worth more than any summary of it. ({url}#58-fitting-the-residual)",
