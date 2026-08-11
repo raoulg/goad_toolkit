@@ -151,6 +151,8 @@ step 3.
 | `ComparePlotDate` | `ComparePlot` + `VerticalDate` | |
 | `BarWithDates` | bars with a month locator on the x axis | |
 | `ResidualPlot` | `BarWithDates` + `VerticalDate` | the residual-over-time view |
+| `DecomposePlot` | `seasonal_decompose`, one panel each | observed/trend/seasonal/residual, overrides `plot` |
+| `ACFPlot` | `acf` as bars with a confidence band | see [Five families §4.2](04-five-families.md) |
 | `HistogramPlot` | `sns.histplot`, `stat="density"` | density so a pdf can be overlaid |
 | `DistPlot` | a scipy distribution's pdf or pmf | estimates its own x-range from `ppf` |
 | `PlotFits` | histogram + fitted pdf, one panel per fit | see [Distributions](05-distributions.md) |
@@ -216,9 +218,11 @@ lines of code.
   `self.ax.axvline(...)`, `self.fig.suptitle(...)`. Keeping to them is what makes
   `plot_on_axes` reliable.
 
-`PlotFits` overrides `plot` rather than `build`, because it needs to know how many panels to
-create before the figure exists. Its `build` is a no-op. It is the exception, not a pattern to
-copy.
+`PlotFits` and `DecomposePlot` override `plot` rather than `build`, because both need to know
+how many panels to create before the figure exists — variable for `PlotFits` (one per fit),
+fixed at four for `DecomposePlot`. Either way, `build` alone cannot decide the panel count
+before `create_figure` runs, so both leave it as a no-op. This is the exception, not a pattern
+to copy for a plot that only ever needs one axis.
 
 ---
 

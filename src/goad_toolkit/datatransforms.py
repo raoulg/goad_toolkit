@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 import pandas as pd
 from tqdm import tqdm
@@ -119,6 +119,45 @@ class ZScaler(TransformBase):
         else:
             colname = column
         data[colname] = (data[column] - data[column].mean()) / data[column].std()
+        return data
+
+
+class TimeFeatures(TransformBase):
+    """Derive calendar features from a timestamp column.
+
+    `features` picks which columns to write, from `"date"`, `"hour"`,
+    `"day_name"`, `"isoweek"`, `"year_week"`. Defaults to `"day_name"`,
+    `"isoweek"`, `"year_week"` — the three lesson 1 already relies on.
+    A feature named the same as `column` overwrites it.
+    """
+
+    AVAILABLE = ("date", "hour", "day_name", "isoweek", "year_week")
+    DEFAULT = ("day_name", "isoweek", "year_week")
+
+    def transform(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        features: Optional[List[str]] = None,
+    ) -> pd.DataFrame:
+        selected = list(features) if features is not None else list(self.DEFAULT)
+        unknown = set(selected) - set(self.AVAILABLE)
+        if unknown:
+            raise ValueError(
+                f"Unknown feature(s) {sorted(unknown)}; choose from {self.AVAILABLE}"
+            )
+
+        ts = pd.to_datetime(data[column])
+        if "date" in selected:
+            data["date"] = ts.dt.date
+        if "hour" in selected:
+            data["hour"] = ts.dt.hour
+        if "day_name" in selected:
+            data["day_name"] = ts.dt.day_name()
+        if "isoweek" in selected:
+            data["isoweek"] = ts.dt.isocalendar().week
+        if "year_week" in selected:
+            data["year_week"] = ts.dt.strftime("%Y-%W")
         return data
 
 

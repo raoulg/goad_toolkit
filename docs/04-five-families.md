@@ -76,10 +76,12 @@ the period is long relative to your intuition.
   the same data support different stories. Choose the window from the mechanism you are
   studying, before you look.
 
-**In GOAD:** `ShiftValues`, `DiffValues`, `RollingAvg`, `SelectDataRange` are all pipeline
-steps, so the smoothing window is a named parameter you can change in one line and rerun.
-`ComparePlot` puts raw and smoothed on the same axes; `VerticalDate` marks the moment you
-claim something changed, with a label, on the plot.
+**In GOAD:** `ShiftValues`, `DiffValues`, `RollingAvg`, `SelectDataRange`, `TimeFeatures` are
+all pipeline steps, so the smoothing window is a named parameter you can change in one line
+and rerun. `ComparePlot` puts raw and smoothed on the same axes; `VerticalDate` marks the
+moment you claim something changed, with a label, on the plot. `DecomposePlot` wraps
+`seasonal_decompose` into the four-panel observed/trend/seasonal/residual view; `ACFPlot`
+wraps `acf` with its confidence band, for finding a period you did not already suspect.
 
 ---
 

@@ -58,6 +58,7 @@ input frame is safe, and the steps stay cheap.
 | `SelectDataRange` | keep rows in a date range | `start_date`, `end_date` |
 | `RollingAvg` | rolling mean, drops the leading NaNs | `column`, `window`, `rename` |
 | `ZScaler` | standardise to mean 0, std 1 | `column`, `rename` |
+| `TimeFeatures` | derive calendar columns from a timestamp | `column`, `features` |
 
 `rename=True` writes to a new column (`deaths_shifted`, `deaths_zscore`, …) instead of
 overwriting. Prefer it. An overwritten column is a step you cannot debug, and the whole
@@ -75,20 +76,17 @@ Subclass `TransformBase` and implement `transform`. That is the entire contract.
 from goad_toolkit.datatransforms import TransformBase
 import pandas as pd
 
-class TimeFeatures(TransformBase):
-    """Derive calendar features from a timestamp column."""
+class IsWeekend(TransformBase):
+    """Flag Saturday/Sunday from a timestamp column."""
 
     def transform(self, data: pd.DataFrame, column: str) -> pd.DataFrame:
         ts = pd.to_datetime(data[column])
-        data["date"] = ts.dt.date
-        data["hour"] = ts.dt.hour
-        data["day_name"] = ts.dt.day_name()
-        data["isoweek"] = ts.dt.isocalendar().week
+        data["is_weekend"] = ts.dt.dayofweek >= 5
         return data
 ```
 
 ```python
-pipeline.add(TimeFeatures, column="timestamp")
+pipeline.add(IsWeekend, column="timestamp")
 ```
 
 What the base class does for you:

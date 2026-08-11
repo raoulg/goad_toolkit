@@ -7,9 +7,11 @@ import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 
 from goad_toolkit.visualizer import (  # noqa: E402
+    ACFPlot,
     BarWithDates,
     ComparePlot,
     ComparePlotDate,
+    DecomposePlot,
     LinePlot,
     PlotSettings,
     ResidualPlot,
@@ -111,3 +113,37 @@ def test_compare_plot_date_returns_fig_and_ax(data):
 
     assert fig is not None
     assert ax is not None
+
+
+@pytest.fixture
+def weekly_cycle() -> pd.DataFrame:
+    dates = pd.date_range("2021-01-01", periods=56, freq="D")
+    day_of_week = dates.dayofweek.to_numpy()
+    seasonal = [0, 1, 2, 3, 4, -8, -8][:7]  # weekday-shaped, weekend dip
+    values = [10 + i * 0.1 + seasonal[d] for i, d in enumerate(day_of_week)]
+    return pd.DataFrame({"value": values}, index=dates)
+
+
+def test_decompose_plot_returns_one_panel_per_component(weekly_cycle):
+    fig = DecomposePlot(PlotSettings()).plot(
+        data=weekly_cycle, column="value", period=7
+    )
+
+    visible_axes = [ax for ax in fig.axes if ax.get_visible()]
+    assert len(visible_axes) == 4
+    titles = [ax.get_title() for ax in visible_axes]
+    assert titles == ["Observed", "Trend", "Seasonal", "Residual"]
+
+
+def test_acf_plot_returns_fig_and_ax(weekly_cycle):
+    fig, ax = ACFPlot(PlotSettings()).plot(data=weekly_cycle["value"], nlags=14)
+
+    assert fig is not None
+    assert len(ax.patches) == 15  # lags 0..14 inclusive
+
+
+def test_acf_plot_rejects_missing_values():
+    series = pd.Series([1.0, 2.0, float("nan"), 4.0, 5.0])
+
+    with pytest.raises(ValueError, match="missing values"):
+        ACFPlot(PlotSettings()).plot(data=series, nlags=2)

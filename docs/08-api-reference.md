@@ -83,9 +83,14 @@ class TransformBase(ABC):
 | `SelectDataRange` | `start_date: str, end_date: str` |
 | `RollingAvg` | `column: str, window: int, rename: bool = False` |
 | `ZScaler` | `column: str, rename: bool = False` |
+| `TimeFeatures` | `column: str, features: Optional[List[str]] = None` |
 
 `rename=True` writes to `{column}_shifted` / `_diff` / `_rolling_avg` / `_zscore` instead of
 overwriting.
+
+`TimeFeatures.AVAILABLE` is `("date", "hour", "day_name", "isoweek", "year_week")`;
+`TimeFeatures.DEFAULT` — used when `features` is omitted — is `("day_name", "isoweek",
+"year_week")`. A feature named the same as `column` overwrites it.
 
 ```python
 class Pipeline:
@@ -267,12 +272,17 @@ class BasePlot(ABC):
 | `ResidualPlot` | `data, x, y, date, datelabel, interval: int = 1` |
 | `HistogramPlot` | `data: np.ndarray, bins=None, kde=False, color="skyblue", alpha=0.7, **kwargs` |
 | `DistPlot` | `distribution, x_range=None, samples=1000, color="crimson", linewidth=2, label=None, **kwargs` |
+| `ACFPlot` | `data, nlags=40, alpha=0.05, color="steelblue", band_color="gray", **kwargs` |
 
 ```python
 class PlotFits(BasePlot):
     def plot(self, data: np.ndarray,
              fit_results: List[Result],
              fitplotsettings: FitPlotSettings) -> Figure
+
+class DecomposePlot(BasePlot):
+    def plot(self, data: pd.DataFrame, column: str, period: int,
+             model: str = "additive", **kwargs) -> Figure
 ```
 
 Every `build` returns `(self.fig, self.ax)`, and every plot draws on `self.ax` / `self.fig`
@@ -309,12 +319,16 @@ of `likelihood`, `ks`, `combined`; `--method` is passed to `scipy.stats.fit`.
 
 ## 8.10 Rough edges worth knowing
 
-- `PlotFits` overrides `plot` rather than `build`; its `build` is a no-op. It is the one
-  exception to the `build` contract.
+- `PlotFits` and `DecomposePlot` override `plot` rather than `build`; their `build` is a
+  no-op. Both need the panel count decided before `create_figure` runs — from the fit results
+  for `PlotFits`, always four for `DecomposePlot` — which `build` alone cannot do.
 - Fits that fail come back as `FailedFit` values in the result list rather than raising, so
   a list of results can contain both kinds and needs an `isinstance` check.
 - `Pipeline.apply` copies the frame once and then mutates that copy in place, so transforms
   see each other's columns — the order you add steps in matters.
+- `ACFPlot` raises `ValueError` if the data contains NaNs, rather than passing them through.
+  `statsmodels.tsa.stattools.acf` does not raise on missing values — it silently returns an
+  all-NaN result — so a decomposition's residual needs `.dropna()` before it reaches `ACFPlot`.
 
 ---
 

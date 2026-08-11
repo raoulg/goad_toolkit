@@ -16,6 +16,7 @@ dependencies = [
     "requests>=2.32.3",
     "scipy>=1.15.2",
     "seaborn>=0.13.2",
+    "statsmodels>=0.14.4",
     "tqdm>=4.67.1",
 ]
 urls = {Github = "https://github.com/raoulg/goad_toolkit"}

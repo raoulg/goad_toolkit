@@ -11,6 +11,8 @@ import seaborn as sns
 from loguru import logger
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.stattools import acf
 
 from goad_toolkit.analytics import FitResult, Result
 
@@ -245,6 +247,118 @@ class ResidualPlot(BasePlot):
         if self.ax is None:
             raise ValueError("No axes available for plotting")
         self.ax.tick_params(axis="x", rotation=45)
+        return self.fig, self.ax
+
+
+class DecomposePlot(BasePlot):
+    """Decompose a series into observed, trend, seasonal and residual panels."""
+
+    def plot(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        period: int,
+        model: str = "additive",
+        **kwargs,
+    ) -> Figure:
+        """
+        Run `statsmodels.tsa.seasonal.seasonal_decompose` and draw each
+        component on its own panel.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Frame with a datetime index and the series to decompose.
+        column : str
+            Column to decompose.
+        period : int
+            Number of observations per cycle (e.g. 24 for hourly data with a
+            daily cycle, 7 for daily data with a weekly cycle).
+        model : str
+            `"additive"` or `"multiplicative"`, passed to `seasonal_decompose`.
+        **kwargs : Additional keyword arguments passed to `seasonal_decompose`.
+
+        Returns:
+        --------
+        fig : The created figure, with one panel per component.
+        """
+        result = seasonal_decompose(data[column], model=model, period=period, **kwargs)
+        components = [
+            ("Observed", result.observed),
+            ("Trend", result.trend),
+            ("Seasonal", result.seasonal),
+            ("Residual", result.resid),
+        ]
+
+        self.settings.subplot_titles = [name for name, _ in components]
+        self.fig, axes = self.create_figure(n_plots=len(components))
+
+        for ax, (_, values) in zip(axes, components):
+            comp_data = values.rename("value").reset_index()
+            index_col = comp_data.columns[0]
+            line = LinePlot(self.settings)
+            self.plot_on_axes(line, ax=ax, data=comp_data, x=index_col, y="value")
+
+        return self.fig
+
+    def build(self):
+        """No-op: `DecomposePlot` overrides `plot` because the panel count is fixed at four."""
+        pass
+
+
+class ACFPlot(BasePlot):
+    """Bar plot of the autocorrelation function with a Bartlett confidence band."""
+
+    def build(
+        self,
+        data: Any,
+        nlags: int = 40,
+        alpha: float = 0.05,
+        color: str = "steelblue",
+        band_color: str = "gray",
+        **kwargs,
+    ):
+        """
+        Plot the autocorrelation function for a series.
+
+        Parameters:
+        -----------
+        data : array-like
+            Series to compute the ACF for. Must not contain missing values —
+            drop NaNs first (a decomposition's residual has them at the edges).
+        nlags : int
+            Number of lags to compute and plot.
+        alpha : float
+            Significance level for the confidence band.
+        color : str
+            Bar color.
+        band_color : str
+            Confidence band color.
+        **kwargs : Additional keyword arguments passed to `ax.bar`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        series = pd.Series(data)
+        if series.isna().any():
+            raise ValueError(
+                "ACFPlot got missing values; statsmodels.tsa.stattools.acf does not "
+                "raise on NaN, it silently returns an all-NaN result. Drop NaNs first "
+                "(a decomposition's residual has them at the edges)."
+            )
+
+        values, confint = acf(series, nlags=nlags, alpha=alpha, fft=True)  # type: ignore
+        lags = np.arange(len(values))
+        band = (confint[:, 1] - confint[:, 0]) / 2
+
+        self.ax.fill_between(lags, -band, band, color=band_color, alpha=0.2)
+        self.ax.axhline(0, color="black", linewidth=0.8)
+        self.ax.bar(lags, values, color=color, width=0.3, **kwargs)
+
         return self.fig, self.ax
 
 
