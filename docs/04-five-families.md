@@ -116,7 +116,8 @@ fitted pdf drawn over the histogram to see where it agrees and where it does not
   sample sizes are near-unreadable. Normalise, or use ECDFs, or do a two-sample test.
 
 **In GOAD:** `HistogramPlot` (density-scaled, so a pdf overlays correctly), `DistPlot` for a
-parametric curve, and `DistributionFitter` + `PlotFits` for the full ranked comparison. See
+parametric curve, `DistributionFitter` + `PlotFits` for the full ranked comparison, and
+`QQPlot` / `ECDFPlot` for the tail diagnostics a histogram cannot show. See
 [Distributions](05-distributions.md).
 
 ---

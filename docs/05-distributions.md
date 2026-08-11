@@ -25,7 +25,7 @@ kind of process you are looking at.
 needs: the scipy object, whether it is discrete, and how many parameters it takes.
 
 Shipped: `norm`, `uniform`, `lognorm`, `poisson`, `exponential`, `skewnorm`, `gamma`,
-`weibull`.
+`weibull`, `bernoulli`, `binomial`, `nbinom`, `beta`.
 
 ```python
 from goad_toolkit.distributions import DistributionRegistry
@@ -36,10 +36,16 @@ registry.get_names()
 registry.register_distribution("pareto", stats.pareto, is_discrete=False, num_params=3)
 ```
 
-Registering a family is the extension point that matters most in practice, because the
-shipped set is missing things real data needs — `pareto` and `zipf` for rank-frequency data,
-`bernoulli` and `binom` for yes/no outcomes, `nbinom` for over-dispersed counts, `beta` for a
-distribution over a probability.
+`pareto` is deliberately not in the shipped set, even though the chat corpus is exactly the
+kind of data it fits — word frequency and burst lengths are rank-frequency data, the
+textbook case for a power law. Registering it yourself, as above, is the extensibility
+exercise: a fit run without it will call the same data "lognormal" and look convincing, and
+registering `pareto` is what exposes that the winner depends on what you thought to try.
+`zipf` is the same story for discrete rank data and ships the same way.
+
+Registering a family is the extension point that matters whenever the shipped set is still
+missing something real data needs — a power-law family among them, `zipf` for discrete
+rank data, or anything scipy has that GOAD has not wrapped.
 
 Two things to know before you rely on it:
 
@@ -154,14 +160,50 @@ What to look at, in order:
 
 1. **The tails.** This is where families differ and where the fit matters, and it is also
    where a histogram has the fewest observations and is least readable. If your question is
-   about extreme values, a histogram will not settle it — use a qq-plot or an ECDF on a log
-   scale.
+   about extreme values, a histogram will not settle it — use `QQPlot` or `ECDFPlot`, below.
 2. **Systematic deviation, not point-by-point wobble.** A curve that is above the histogram
    on the left and below it on the right is a wrong-shape signal. Individual bars being off
    is sampling noise.
 3. **Whether the winner is meaningfully ahead.** Two families with near-identical
    log-likelihoods have not been distinguished by your data, and picking one is a choice you
    should make on mechanism, not on the fourth decimal place.
+
+### `QQPlot`, `ECDFPlot`, and `fit_table`
+
+```python
+from goad_toolkit.visualizer import QQPlot, ECDFPlot, PlotSettings
+
+QQPlot(PlotSettings(title="Residuals vs. normal")).plot(
+    data=data["residual"], distribution=best.frozen_dist,
+)
+```
+
+`QQPlot` sorts the sample and plots it against the fitted (frozen) distribution's quantiles
+at matching plotting positions, with a y=x reference line. A fit that looked fine in
+`PlotFits`' histogram can still bend away from that line in the tails — which is the point:
+the histogram is dominated by the bulk, the qq-plot is not.
+
+```python
+ECDFPlot(PlotSettings()).plot(
+    data=group_a["value"], compare=group_b["value"],
+    label="group a", compare_label="group b",
+)
+```
+
+`ECDFPlot` draws one empirical CDF, or two with `compare=` for a direct two-sample
+comparison — no bin width to choose, so the shape on screen is entirely the data's, not a
+plotting decision.
+
+```python
+from goad_toolkit.analytics import fit_table
+
+fit_table(results)
+```
+
+`fit_table` turns a list of `fit()` results into the dataframe a student should hand in
+instead of a screenshot of a picture: distribution, fitted params, log-likelihood, KS
+statistic and p-value, and which criteria (if any) it won — ranked by log-likelihood, with
+`FailedFit` rows sorted last and their message kept instead of a blank row.
 
 ## 5.6 Outliers, properly
 
@@ -195,6 +237,9 @@ data is.
 | lognormal | *products* of many factors | message length, income, response time, file size |
 | exponential | waiting time between independent events | time between messages, within a burst |
 | Poisson | counts of independent rare events in a fixed window | messages per hour, arrivals per day |
+| negative binomial | over-dispersed counts — a Poisson whose rate itself varies | messages per day across people, not within a steady process |
+| Bernoulli | a single yes/no trial | did this message get a reply, is this author still active |
+| binomial | a fixed number of independent yes/no trials | replies within N messages, conversions per N views |
 | power law / Pareto | preferential attachment, "rich get richer" | word frequency by rank, followers, city size |
 | gamma / Weibull | sums of exponentials; time-to-failure with changing hazard | durations, lifetimes |
 | beta | a distribution *over a probability* | uncertainty about a rate, A/B test posteriors |

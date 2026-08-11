@@ -156,6 +156,8 @@ step 3.
 | `HistogramPlot` | `sns.histplot`, `stat="density"` | density so a pdf can be overlaid |
 | `DistPlot` | a scipy distribution's pdf or pmf | estimates its own x-range from `ppf` |
 | `PlotFits` | histogram + fitted pdf, one panel per fit | see [Distributions](05-distributions.md) |
+| `QQPlot` | sample quantiles vs. a distribution's theoretical quantiles | the tails, not the bulk — see [Distributions §5.5](05-distributions.md) |
+| `ECDFPlot` | one or two empirical CDFs, bin-free | the right tool for comparing two samples |
 
 `HistogramPlot` defaults to `sqrt(n)` bins capped at 50. That default is a starting point,
 not an answer — bin count changes what a histogram appears to say, and choosing it is part of
@@ -165,6 +167,14 @@ the analysis, not a detail. Try three.
 falling back to `pmf` for discrete families. Left to itself it picks an x-range from the
 0.1st to the 99.9th percentile, which is right for most things and wrong for anything with a
 very heavy tail — pass `x_range` explicitly there.
+
+`QQPlot` takes a sample and a *frozen* distribution and plots sorted data against the
+distribution's quantiles at matching plotting positions, with a y=x reference line —
+where `PlotFits`' histogram is dominated by the bulk of the data, this is where a tail
+mismatch actually shows up.
+
+`ECDFPlot` plots one sample, or two with `compare=`, as step functions of the empirical CDF —
+no bin width to choose, so nothing about the shape is a plotting decision.
 
 ## 3.7 Writing your own plot
 

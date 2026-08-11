@@ -139,8 +139,11 @@ class DistributionRegistry:
 ```
 
 Registered by default: `norm`, `uniform`, `lognorm`, `poisson`, `exponential`, `skewnorm`,
-`gamma`, `weibull`. Every instance starts from that set, so a registration is scoped to the
-registry you made it on — hand that registry to `DistributionFitter(registry)` to use it.
+`gamma`, `weibull`, `bernoulli`, `binomial`, `nbinom`, `beta`. Every instance starts from that
+set, so a registration is scoped to the registry you made it on — hand that registry to
+`DistributionFitter(registry)` to use it. `pareto` is not in the default set — lesson 4 has
+the student register it, since a default fit missing the one family the data actually needs
+is the point of that exercise.
 
 ---
 
@@ -192,10 +195,21 @@ class DistributionFitter:
 
     @staticmethod
     def best(results: list[Result], criterion: str = "combined") -> list[Result]
+
+def fit_table(results: list[Result]) -> pd.DataFrame
 ```
 
 `criterion` is one of `"likelihood"`, `"ks"`, `"combined"`. Failures are returned as
-`FailedFit` values rather than raised.
+`FailedFit` values rather than raised. `log_likelihood` is computed with `logpdf` for
+continuous families and `logpmf` for discrete ones. The two criteria are marked
+independently: a `criterion="combined"` fit where every KS p-value comes back exactly 0
+(routine for discrete families on a large, tied sample) still gets a `best_likelihood`
+winner — it just has no `best_ks` winner.
+
+`fit_table` turns a list of results into one row per distribution — `distribution`, `params`,
+`log_likelihood`, `ks_stat`, `ks_pvalue`, `best_likelihood`, `best_ks`, `message` — ranked by
+`log_likelihood` descending, with `FailedFit` rows (their `message` kept, metrics `NaN`)
+sorted last.
 
 ---
 
@@ -273,6 +287,8 @@ class BasePlot(ABC):
 | `HistogramPlot` | `data: np.ndarray, bins=None, kde=False, color="skyblue", alpha=0.7, **kwargs` |
 | `DistPlot` | `distribution, x_range=None, samples=1000, color="crimson", linewidth=2, label=None, **kwargs` |
 | `ACFPlot` | `data, nlags=40, alpha=0.05, color="steelblue", band_color="gray", **kwargs` |
+| `QQPlot` | `data, distribution, color="steelblue", line_color="black", alpha=0.6, **kwargs` |
+| `ECDFPlot` | `data, compare=None, label="data", compare_label="compare", color="steelblue", compare_color="crimson", **kwargs` |
 
 ```python
 class PlotFits(BasePlot):
@@ -329,6 +345,12 @@ of `likelihood`, `ks`, `combined`; `--method` is passed to `scipy.stats.fit`.
 - `ACFPlot` raises `ValueError` if the data contains NaNs, rather than passing them through.
   `statsmodels.tsa.stattools.acf` does not raise on missing values — it silently returns an
   all-NaN result — so a decomposition's residual needs `.dropna()` before it reaches `ACFPlot`.
+- `binomial` and `nbinom` fit two shape parameters (`n`, `p`) from the sample mean and
+  variance alone. If `n` is not known independently, it is not identifiable from the data —
+  many `(n, p)` pairs with the same `n·p` fit about as well, so a fitted `n` should be treated
+  as "consistent with the mean", not as a recovered count of trials. When you know `n` from
+  the process (a fixed number of messages, a fixed number of views), trust that `n`, not the
+  fitted one.
 
 ---
 

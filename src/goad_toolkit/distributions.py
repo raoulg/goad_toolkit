@@ -54,6 +54,22 @@ class DistributionRegistry:
         self.register_distribution(
             "weibull", stats.weibull_min, is_discrete=False, num_params=3
         )
+        self.register_distribution(
+            "bernoulli", stats.bernoulli, is_discrete=True, num_params=1
+        )
+        self.register_distribution(
+            "binomial", stats.binom, is_discrete=True, num_params=2
+        )
+        self.register_distribution(
+            "nbinom", stats.nbinom, is_discrete=True, num_params=2
+        )
+        self.register_distribution("beta", stats.beta, is_discrete=False, num_params=4)
+        # pareto is deliberately not shipped here: lesson 4 has the student
+        # register it themselves as the extensibility exercise, and a fit that
+        # silently has pareto available from the start would remove the point
+        # of that exercise. Register it yourself when you need it:
+        #   registry.register_distribution("pareto", stats.pareto,
+        #                                   is_discrete=False, num_params=3)
 
     def __repr__(self) -> str:
         """Detailed representation of the registry."""

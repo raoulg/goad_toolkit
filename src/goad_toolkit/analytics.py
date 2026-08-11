@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
 from loguru import logger
 from scipy import stats
 
@@ -105,7 +106,11 @@ class DistributionFitter:
         # Create bounds based on parameter count
         if dist_obj.num_params == 1:
             if dist_obj.is_discrete:
-                mean_lower_bound = max(0.1, float(data_mean / 10))
+                # A single-parameter discrete family's shape parameter is not always
+                # a count-scale rate (poisson's lambda) — it can be a probability
+                # (bernoulli's p), which is routinely well under 0.1, so the floor
+                # here stays near zero rather than at 0.1.
+                mean_lower_bound = max(1e-3, float(data_mean / 10))
                 mean_upper_bound = float(data_mean * 10)
                 return [(mean_lower_bound, mean_upper_bound)]
             else:
@@ -134,15 +139,17 @@ class DistributionFitter:
 
     def _calculate_loglikelihood(self, data: np.ndarray, dist_obj, params) -> float:
         """Calculate log-likelihood of data given distribution and parameters.
-        For every datapoint, calculate the log probability density function (PDF)
-        We sum all the log PDFs to get the log-likelihood of the data.
-        If there are a lot of datapoints with very low probability, the log-likelihood
-        will be very negative (or -inf if probability is 0).
+        For every datapoint, calculate the log density (continuous families, via
+        logpdf) or the log mass (discrete families, via logpmf). We sum them to get
+        the log-likelihood of the data. If there are a lot of datapoints with very
+        low probability, the log-likelihood will be very negative (or -inf if
+        probability is 0).
 
         We will prefer distributions with higher log-likelihood values.
         """
         try:
-            return np.sum(dist_obj.dist.logpdf(data, *params))
+            log_density = dist_obj.dist.logpmf if dist_obj.is_discrete else dist_obj.dist.logpdf
+            return np.sum(log_density(data, *params))
         except Exception as e:
             logger.warning(f"Log-likelihood calculation failed: {str(e)}")
             return -np.inf
@@ -239,33 +246,24 @@ class DistributionFitter:
                     best_ks_value = fit_ks
                     best_ks_fit = fit
 
-        # Only mark if we found best fits
-        if best_likelihood_fit is not None and best_ks_fit is not None:
-            # Mark based on criterion
-            if criterion == "likelihood":
-                # Mark only likelihood best
-                for fit in fits:
-                    if isinstance(fit, FitResult):
-                        fit.best_likelihood = (
-                            fit.distribution == best_likelihood_fit.distribution
-                        )
+        if criterion not in ("likelihood", "ks", "combined"):
+            raise ValueError(f"Unknown criterion '{criterion}'")
 
-            elif criterion == "ks":
-                # Mark only KS best
-                for fit in fits:
-                    if isinstance(fit, FitResult):
-                        fit.best_ks = fit.distribution == best_ks_fit.distribution
+        # Each criterion is marked independently: a KS test that never clears the
+        # p > 0 threshold (routine for discrete families on a large sample, where
+        # ties push the p-value to numerical zero) must not suppress a perfectly
+        # good best_likelihood winner, and vice versa.
+        if criterion in ("likelihood", "combined") and best_likelihood_fit is not None:
+            for fit in fits:
+                if isinstance(fit, FitResult):
+                    fit.best_likelihood = (
+                        fit.distribution == best_likelihood_fit.distribution
+                    )
 
-            elif criterion == "combined":
-                # Mark both
-                for fit in fits:
-                    if isinstance(fit, FitResult):
-                        fit.best_likelihood = (
-                            fit.distribution == best_likelihood_fit.distribution
-                        )
-                        fit.best_ks = fit.distribution == best_ks_fit.distribution
-            else:
-                raise ValueError(f"Unknown criterion '{criterion}'")
+        if criterion in ("ks", "combined") and best_ks_fit is not None:
+            for fit in fits:
+                if isinstance(fit, FitResult):
+                    fit.best_ks = fit.distribution == best_ks_fit.distribution
 
         # Return the original list
         return fits
@@ -327,3 +325,46 @@ class DistributionFitter:
             ]
         else:
             raise ValueError(f"Unknown criterion '{criterion}'")
+
+
+def fit_table(results: List[Result]) -> pd.DataFrame:
+    """Turn a list of fit results into a ranked dataframe: what a student hands in.
+
+    One row per distribution: name, fitted params, log-likelihood, KS statistic and
+    KS p-value, plus which criteria (if any) it won. Ranked by log-likelihood,
+    descending; `FailedFit` entries carry their failure message in `message` and
+    sort last, since a missing likelihood is not a small likelihood.
+    """
+    rows = []
+    for result in results:
+        if isinstance(result, FitResult):
+            rows.append(
+                {
+                    "distribution": result.distribution,
+                    "params": result.params,
+                    "log_likelihood": result.log_likelihood,
+                    "ks_stat": result.kstest.statistic if result.kstest else float("nan"),
+                    "ks_pvalue": result.kstest.p_value if result.kstest else float("nan"),
+                    "best_likelihood": bool(result.best_likelihood),
+                    "best_ks": bool(result.best_ks),
+                    "message": result.message,
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "distribution": result.distribution,
+                    "params": None,
+                    "log_likelihood": float("nan"),
+                    "ks_stat": float("nan"),
+                    "ks_pvalue": float("nan"),
+                    "best_likelihood": False,
+                    "best_ks": False,
+                    "message": result.message,
+                }
+            )
+
+    table = pd.DataFrame(rows)
+    return table.sort_values(
+        "log_likelihood", ascending=False, na_position="last"
+    ).reset_index(drop=True)

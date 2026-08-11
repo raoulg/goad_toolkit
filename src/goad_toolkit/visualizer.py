@@ -505,6 +505,130 @@ class DistPlot(BasePlot):
             return x
 
 
+class QQPlot(BasePlot):
+    """Quantile-quantile plot: is this fit believable, not just which one wins.
+
+    A histogram with a pdf overlaid (PlotFits, DistPlot) is dominated by the bulk
+    of the data, which is exactly where distributions look most alike. A qq-plot
+    puts sorted data against the fitted distribution's theoretical quantiles, so a
+    systematic deviation in a tail — where families actually differ — shows up as
+    points bending away from the reference line instead of as a few stray bars.
+    """
+
+    def build(
+        self,
+        data: np.ndarray,
+        distribution: Any,
+        color: str = "steelblue",
+        line_color: str = "black",
+        alpha: float = 0.6,
+        **kwargs,
+    ) -> Tuple[Any, Any]:
+        """
+        Plot sample quantiles against a distribution's theoretical quantiles.
+
+        Parameters:
+        -----------
+        data : np.ndarray
+            Sample to plot
+        distribution : scipy.stats distribution
+            Fitted (frozen) distribution to compare against; must have a ppf method
+        color : str
+            Colour of the quantile points
+        line_color : str
+            Colour of the y=x reference line
+        alpha : float
+            Transparency of the quantile points
+        **kwargs : Additional keyword arguments passed to ax.scatter
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        sample = np.sort(np.asarray(data))
+        n = len(sample)
+        if n == 0:
+            raise ValueError("QQPlot got no data to plot")
+
+        # Filliben-style plotting positions: (i - 0.5) / n avoids ppf(0) / ppf(1),
+        # which are -inf/inf for most families.
+        probabilities = (np.arange(1, n + 1) - 0.5) / n
+        theoretical = distribution.ppf(probabilities)
+
+        self.ax.scatter(theoretical, sample, color=color, alpha=alpha, **kwargs)
+
+        lo = min(np.min(theoretical), np.min(sample))
+        hi = max(np.max(theoretical), np.max(sample))
+        self.ax.plot([lo, hi], [lo, hi], color=line_color, linewidth=1, linestyle="--")
+
+        return self.fig, self.ax
+
+
+class ECDFPlot(BasePlot):
+    """Empirical CDF: bin-free, and the right tool for comparing two samples.
+
+    A histogram's shape depends on its bin width; an ECDF has no such knob, uses
+    every point, and puts two samples on directly comparable axes without either
+    one's binning choice hiding or manufacturing a difference.
+    """
+
+    def build(
+        self,
+        data: np.ndarray,
+        compare: Optional[np.ndarray] = None,
+        label: str = "data",
+        compare_label: str = "compare",
+        color: str = "steelblue",
+        compare_color: str = "crimson",
+        **kwargs,
+    ) -> Tuple[Any, Any]:
+        """
+        Plot the empirical CDF of `data`, and optionally a second sample over it.
+
+        Parameters:
+        -----------
+        data : np.ndarray
+            Sample to plot
+        compare : Optional[np.ndarray]
+            A second sample to overlay, for a direct two-sample comparison
+        label : str
+            Legend label for `data`
+        compare_label : str
+            Legend label for `compare`
+        color : str
+            Colour of the `data` step curve
+        compare_color : str
+            Colour of the `compare` step curve
+        **kwargs : Additional keyword arguments passed to ax.step
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+        ax = self.ax
+
+        self._draw(ax, np.asarray(data), color=color, label=label, **kwargs)
+        if compare is not None:
+            self._draw(ax, np.asarray(compare), color=compare_color, label=compare_label, **kwargs)
+
+        if compare is not None or label:
+            ax.legend()
+
+        return self.fig, self.ax
+
+    def _draw(self, ax: Axes, values: np.ndarray, color: str, label: Optional[str], **kwargs) -> None:
+        if len(values) == 0:
+            raise ValueError("ECDFPlot got no data to plot")
+        sorted_values = np.sort(values)
+        y = np.arange(1, len(sorted_values) + 1) / len(sorted_values)
+        ax.step(sorted_values, y, where="post", color=color, label=label, **kwargs)
+
+
 @dataclass
 class FitPlotSettings:
     """Settings for distribution fit plots."""

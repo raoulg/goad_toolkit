@@ -2,9 +2,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import numpy as np  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
+from scipy import stats  # noqa: E402
 
 from goad_toolkit.visualizer import (  # noqa: E402
     ACFPlot,
@@ -12,8 +14,10 @@ from goad_toolkit.visualizer import (  # noqa: E402
     ComparePlot,
     ComparePlotDate,
     DecomposePlot,
+    ECDFPlot,
     LinePlot,
     PlotSettings,
+    QQPlot,
     ResidualPlot,
     VerticalDate,
 )
@@ -147,3 +151,50 @@ def test_acf_plot_rejects_missing_values():
 
     with pytest.raises(ValueError, match="missing values"):
         ACFPlot(PlotSettings()).plot(data=series, nlags=2)
+
+
+def test_qq_plot_points_fall_near_the_reference_line_for_a_correct_fit():
+    rng = np.random.default_rng(11)
+    data = rng.normal(loc=5.0, scale=2.0, size=500)
+
+    fig, ax = QQPlot(PlotSettings()).plot(data=data, distribution=stats.norm(loc=5.0, scale=2.0))
+
+    assert fig is not None
+    offsets = ax.collections[0].get_offsets()
+    theoretical, sample = offsets[:, 0], offsets[:, 1]
+    assert np.corrcoef(theoretical, sample)[0, 1] > 0.99
+    # A y=x reference line is drawn alongside the scatter.
+    assert len(ax.lines) == 1
+
+
+def test_qq_plot_rejects_empty_data():
+    with pytest.raises(ValueError, match="no data"):
+        QQPlot(PlotSettings()).plot(data=np.array([]), distribution=stats.norm())
+
+
+def test_ecdf_plot_single_sample_is_a_valid_step_curve():
+    data = np.array([1, 2, 2, 3, 5])
+
+    fig, ax = ECDFPlot(PlotSettings()).plot(data=data)
+
+    assert fig is not None
+    line = ax.lines[0]
+    y = line.get_ydata()
+    assert y[-1] == pytest.approx(1.0)
+    assert np.all(np.diff(y) >= 0)  # monotonically non-decreasing
+
+
+def test_ecdf_plot_compares_two_samples():
+    lower = np.array([1, 2, 3, 4, 5])
+    higher = lower + 10
+
+    fig, ax = ECDFPlot(PlotSettings()).plot(data=lower, compare=higher, label="a", compare_label="b")
+
+    assert len(ax.lines) == 2
+    legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert legend_labels == ["a", "b"]
+
+
+def test_ecdf_plot_rejects_empty_data():
+    with pytest.raises(ValueError, match="no data"):
+        ECDFPlot(PlotSettings()).plot(data=np.array([]))
