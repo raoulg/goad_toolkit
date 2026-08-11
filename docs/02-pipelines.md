@@ -59,6 +59,7 @@ input frame is safe, and the steps stay cheap.
 | `RollingAvg` | rolling mean, drops the leading NaNs | `column`, `window`, `rename` |
 | `ZScaler` | standardise to mean 0, std 1 | `column`, `rename` |
 | `TimeFeatures` | derive calendar columns from a timestamp | `column`, `features` |
+| `RegexFeature` | count / flag / extract a pattern in a text column | `column`, `pattern`, `feature`, `mode` |
 
 `rename=True` writes to a new column (`deaths_shifted`, `deaths_zscore`, …) instead of
 overwriting. Prefer it. An overwritten column is a step you cannot debug, and the whole
@@ -104,38 +105,38 @@ Two rules for your `transform`:
 - **Name your parameters explicitly** in the signature. `def transform(self, data, column,
   window)` documents itself; `**kwargs` does not, and the validation cannot help you.
 
-## 2.5 A transform for feature enrichment
+## 2.5 `RegexFeature`: feature enrichment from text
 
-The single most useful custom transform for text data, and a good template:
-
-```python
-class RegexFeature(TransformBase):
-    """Add a feature extracted from a text column with a regular expression."""
-
-    def transform(
-        self,
-        data: pd.DataFrame,
-        column: str,
-        pattern: str,
-        feature: str,
-        mode: str = "count",
-    ) -> pd.DataFrame:
-        text = data[column].fillna("")
-        if mode == "count":
-            data[feature] = text.str.count(pattern)
-        elif mode == "has":
-            data[feature] = text.str.contains(pattern, regex=True)
-        elif mode == "extract":
-            data[feature] = text.str.extract(pattern, expand=False)
-        else:
-            raise ValueError(f"mode must be count/has/extract, got {mode!r}")
-        return data
-```
+The single most useful transform for text data, and the reason `TransformBase` is worth
+subclassing at all. It ships:
 
 ```python
+from goad_toolkit.datatransforms import RegexFeature
+
 pipeline.add(RegexFeature, name="url_flag",
              column="message", pattern=r"https?://\S+", feature="has_url", mode="has")
 ```
+
+Three modes, each writing one new column named by `feature`:
+
+| `mode` | writes | use for |
+|---|---|---|
+| `"count"` | how many times the pattern occurs (int) | how many URLs, how many question marks |
+| `"has"` | whether it occurs at all (bool) | flags you will group or filter on |
+| `"extract"` | the first capture group, NaN where nothing matched | pulling a value *out* of the text |
+
+`"extract"` needs exactly one capture group in `pattern`, and it is the mode worth being
+careful with. `count` and `has` fail visibly when a pattern is wrong — a column of all zeros
+or all `False` is hard to miss. Extraction fails *silently*, filling with NaN, so it reports
+its own coverage through `loguru`:
+
+```
+mentions: extracted 'addressed_to' from 92,415/627,172 rows (14.7%); 534,757 rows had no match
+```
+
+That number is the point. A pattern that matches 15% of rows may be exactly right — on IRC,
+most messages do not address anyone — or it may be silently broken. The log line makes you
+decide which, instead of finding out four notebooks later.
 
 Note the two different `name`s: `Pipeline.add(name=...)` names the *step*, and
 `TransformBase.__init__` consumes it. So the new-column parameter has to be called something
