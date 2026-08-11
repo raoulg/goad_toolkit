@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
 import pandas as pd
+from loguru import logger
 from tqdm import tqdm
 
 T = TypeVar("T", bound="TransformBase")
@@ -158,6 +159,52 @@ class TimeFeatures(TransformBase):
             data["isoweek"] = ts.dt.isocalendar().week
         if "year_week" in selected:
             data["year_week"] = ts.dt.strftime("%Y-%W")
+        return data
+
+
+class RegexFeature(TransformBase):
+    """Add a feature extracted from a text column with a regular expression.
+
+    Three modes, all writing a single new column named by `feature`:
+
+    - `"count"` — how many times the pattern occurs per row (int);
+    - `"has"` — whether it occurs at all (bool);
+    - `"extract"` — the first capture group's text, or NaN where nothing matched.
+      `pattern` must contain exactly one capture group in this mode.
+
+    The new column is `feature`, not `name`: `Pipeline.add(name=...)` already claims
+    `name` for the step, and `TransformBase.__init__` consumes it. Any transform that
+    names an output column has to spell that parameter something else.
+
+    `mode="extract"` reports its own coverage through `loguru`. `count` and `has` fail
+    visibly when a pattern is wrong — a column of all zeros or all False. Extraction
+    fails silently, filling with NaN, so it says out loud how much it matched.
+    """
+
+    def transform(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        pattern: str,
+        feature: str,
+        mode: str = "count",
+    ) -> pd.DataFrame:
+        text = data[column].fillna("")
+        if mode == "count":
+            data[feature] = text.str.count(pattern)
+        elif mode == "has":
+            data[feature] = text.str.contains(pattern, regex=True)
+        elif mode == "extract":
+            data[feature] = text.str.extract(pattern, expand=False)
+            matched = data[feature].notna().sum()
+            total = len(data)
+            share = f"{matched / total:.1%}" if total else "n/a"
+            logger.info(
+                f"{self.name}: extracted '{feature}' from {matched:,}/{total:,} rows "
+                f"({share}); {total - matched:,} rows had no match"
+            )
+        else:
+            raise ValueError(f"mode must be count/has/extract, got {mode!r}")
         return data
 
 

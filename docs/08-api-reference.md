@@ -84,6 +84,7 @@ class TransformBase(ABC):
 | `RollingAvg` | `column: str, window: int, rename: bool = False` |
 | `ZScaler` | `column: str, rename: bool = False` |
 | `TimeFeatures` | `column: str, features: Optional[List[str]] = None` |
+| `RegexFeature` | `column: str, pattern: str, feature: str, mode: str = "count"` |
 
 `rename=True` writes to `{column}_shifted` / `_diff` / `_rolling_avg` / `_zscore` instead of
 overwriting.
@@ -91,6 +92,12 @@ overwriting.
 `TimeFeatures.AVAILABLE` is `("date", "hour", "day_name", "isoweek", "year_week")`;
 `TimeFeatures.DEFAULT` — used when `features` is omitted — is `("day_name", "isoweek",
 "year_week")`. A feature named the same as `column` overwrites it.
+
+`RegexFeature.mode` is one of `"count"` (int), `"has"` (bool) or `"extract"` (the first
+capture group, NaN where nothing matched); anything else raises `ValueError`. `extract`
+requires exactly one capture group in `pattern` and logs its match rate through `loguru`.
+The output column is `feature`, not `name` — `Pipeline.add(name=...)` already claims `name`
+for the step.
 
 ```python
 class Pipeline:
