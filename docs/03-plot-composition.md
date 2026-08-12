@@ -81,8 +81,10 @@ The contract:
 - Return `(self.fig, self.ax)` from `build`. Callers chain on it.
 
 `create_figure(n_plots=...)` handles the layout: one axis for a single plot, otherwise a grid
-capped at three columns with the unused axes hidden. Labels, grid and titles are applied to
-every visible axis.
+wrapping at `settings.max_cols` columns — three by default — with the unused axes hidden.
+Labels, grid and titles are applied to every visible axis. Set `max_cols=4` for a quartet or
+`max_cols=2` for a square grid; four panels at the default wrap to 3 + 1, which is rarely
+what a set of four wants.
 
 ## 3.4 `plot_on`: layering
 

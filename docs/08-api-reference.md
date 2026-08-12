@@ -300,6 +300,7 @@ class PlotSettings:
     grid: bool = False
     grid_alpha: Optional[float] = None
     subplot_titles: List[str] = field(default_factory=list)
+    max_cols: int = 3                                    # columns before wrapping
     highlight: List[str] = field(default_factory=list)   # defaults for HighlightCategory
     base_color: str = "lightgrey"
     highlight_color: str = "crimson"
