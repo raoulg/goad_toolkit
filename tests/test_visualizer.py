@@ -13,6 +13,7 @@ from scipy import stats  # noqa: E402
 from goad_toolkit.analytics import NullResult  # noqa: E402
 from goad_toolkit.visualizer import (  # noqa: E402
     ACFPlot,
+    Annotate,
     BarbellPlot,
     BarPlot,
     BarWithDates,
@@ -27,10 +28,12 @@ from goad_toolkit.visualizer import (  # noqa: E402
     LinePlot,
     NullPlot,
     PlotSettings,
+    ProjectionPlot,
     QQPlot,
     RegPlot,
     ResidualPlot,
     ScatterPlot,
+    ScreePlot,
     VerticalDate,
     VerticalLine,
 )
@@ -276,6 +279,119 @@ def categories() -> pd.DataFrame:
 
 def facecolours(ax) -> list:
     return [patch.get_facecolor() for patch in ax.patches]
+
+
+def test_annotate_writes_the_text_on_the_axis():
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+
+    host.plot_on(Annotate(PlotSettings()), text="the dip is the outage", xy=(1.0, 2.0))
+
+    assert [t.get_text() for t in host.ax.texts] == ["the dip is the outage"]
+
+
+def test_annotate_draws_an_arrow_when_the_text_sits_elsewhere():
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+
+    host.plot_on(
+        Annotate(PlotSettings()), text="here", xy=(1.0, 2.0), xytext=(3.0, 4.0)
+    )
+
+    annotation = host.ax.texts[0]
+    assert annotation.arrow_patch is not None
+    assert annotation.get_position() == (3.0, 4.0)
+
+
+def test_annotate_without_a_second_point_draws_no_arrow():
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+
+    host.plot_on(Annotate(PlotSettings()), text="here", xy=(1.0, 2.0), arrow=True)
+
+    assert host.ax.texts[0].arrow_patch is None
+
+
+def test_projection_plot_scatters_the_coordinates():
+    rng = np.random.default_rng(1)
+    coordinates = rng.normal(size=(30, 2))
+
+    fig, ax = ProjectionPlot(PlotSettings()).plot(coordinates=coordinates)
+
+    assert fig is not None
+    assert len(ax.collections[0].get_offsets()) == 30
+
+
+def test_projection_plot_hides_the_meaningless_axes():
+    coordinates = np.random.default_rng(1).normal(size=(10, 2))
+
+    fig, ax = ProjectionPlot(PlotSettings()).plot(coordinates=coordinates)
+
+    assert list(ax.get_xticks()) == []
+    assert list(ax.get_yticks()) == []
+
+
+def test_projection_plot_colours_by_label():
+    coordinates = np.random.default_rng(1).normal(size=(6, 2))
+    labels = ["a", "b"] * 3
+
+    fig, ax = ProjectionPlot(PlotSettings()).plot(
+        coordinates=coordinates, labels=labels
+    )
+
+    legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert legend_labels == ["a", "b"]
+
+
+def test_projection_plot_rejects_more_than_two_dimensions():
+    coordinates = np.random.default_rng(1).normal(size=(10, 3))
+
+    with pytest.raises(ValueError, match=r"shape \(n, 2\)"):
+        ProjectionPlot(PlotSettings()).plot(coordinates=coordinates)
+
+
+def test_projection_plot_rejects_a_label_count_mismatch():
+    coordinates = np.random.default_rng(1).normal(size=(10, 2))
+
+    with pytest.raises(ValueError, match="3 labels for 10 points"):
+        ProjectionPlot(PlotSettings()).plot(
+            coordinates=coordinates, labels=["a", "b", "c"]
+        )
+
+
+def test_scree_plot_draws_a_bar_per_component_and_the_running_total():
+    ratios = [0.5, 0.25, 0.15, 0.1]
+
+    fig, ax = ScreePlot(PlotSettings()).plot(explained_variance_ratio=ratios)
+
+    assert len(ax.patches) == 4
+    cumulative = ax.lines[0].get_ydata()
+    assert cumulative[-1] == pytest.approx(1.0)
+    assert list(cumulative) == pytest.approx([0.5, 0.75, 0.9, 1.0])
+
+
+def test_scree_plot_can_show_only_the_first_components():
+    ratios = [0.5, 0.25, 0.15, 0.1]
+
+    fig, ax = ScreePlot(PlotSettings()).plot(
+        explained_variance_ratio=ratios, n_components=2
+    )
+
+    assert len(ax.patches) == 2
+    assert ax.lines[0].get_ydata()[-1] == pytest.approx(0.75)
+
+
+def test_scree_plot_without_the_cumulative_line():
+    fig, ax = ScreePlot(PlotSettings()).plot(
+        explained_variance_ratio=[0.6, 0.4], cumulative=False
+    )
+
+    assert len(ax.lines) == 0
+
+
+def test_scree_plot_rejects_an_empty_array():
+    with pytest.raises(ValueError, match="non-empty"):
+        ScreePlot(PlotSettings()).plot(explained_variance_ratio=[])
 
 
 def test_bar_plot_draws_one_bar_per_category(categories):

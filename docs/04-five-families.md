@@ -210,9 +210,14 @@ kept; a distance matrix when the items are few enough.
   space; use the projection to *look* at the result. Clustering the 2D coordinates is
   clustering an artefact.
 
-**In GOAD:** projections are computed elsewhere (sklearn) and plotted through a `BasePlot`
-subclass, so the variance-explained ends up in the `PlotSettings` title where a reader will
-see it.
+**In GOAD:** `ProjectionPlot` and `ScreePlot`. Both take arrays, not models — fitting a PCA,
+t-SNE or UMAP is sklearn's job and stays outside this library, so goad never has an opinion
+about how you got the coordinates.
+
+`ProjectionPlot` hides the tick values by default: the units of an embedding mean nothing, and
+showing them invites reading a distance off them. `ScreePlot` is the figure that has to
+accompany it — the variance-explained belongs in the title where a reader will see it, and
+two components carrying 12% make a picture of 12% of the data.
 
 ---
 

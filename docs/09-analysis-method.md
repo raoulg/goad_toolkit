@@ -121,7 +121,7 @@ See [The five families](04-five-families.md).
 | What is grouped visually, and does it match what is grouped conceptually? | The gestalt principles group things for the reader without asking you | the groupings, intended and accidental |
 | Which single element carries the message, and is it the only coloured thing? | Grey first, colour as a pointer, not decoration | the one element |
 | What can you delete without losing meaning? | Everything remaining should be earning its place | the list you deleted |
-| Is the finding written on the plot? | A reader with thirty seconds reads the annotation, not the axes | the annotation, and where it sits |
+| Is the finding written on the plot? (`Annotate`) | A reader with thirty seconds reads the annotation, not the axes | the annotation, and where it sits |
 
 See [Visual critique](07-visual-critique.md).
 
