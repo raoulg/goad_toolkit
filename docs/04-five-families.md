@@ -149,9 +149,22 @@ to look.
   are not independent evidence. This is exactly why regularisation is the better tool for
   "which variables matter" — see [Models and residuals](06-models-and-residuals.md).
 
-**In GOAD:** the scatter and the fit are `BasePlot` subclasses; the interesting work is in
-[Models and residuals](06-models-and-residuals.md), because a relation you can state as a
-model is a relation whose failures you can inspect.
+**In GOAD:** `ScatterPlot`, `RegPlot` and `CorrelationHeatmap`, in that order of use.
+
+```python
+scatter = ScatterPlot(settings)
+scatter.plot(data=data, x="messages", y="length", hue="is_bot")
+scatter.plot_on(RegPlot(settings), data=data, x="messages", y="length", scatter=False)
+```
+
+The layering is the point: the scatter is drawn first and the fit goes on top of it, so the
+choice of `fit_reg`, `order` or `lowess` is made after you have seen the shape rather than
+before. `CorrelationHeatmap` is the entry point when there are too many pairs to plot — it
+tells you which scatter to make next, and nothing more than that.
+
+The interesting work is still in [Models and residuals](06-models-and-residuals.md), because
+a relation you can state as a model is a relation whose failures you can inspect — and
+§6.7 is how you check that the relation is not something a shuffle would have produced.
 
 ---
 

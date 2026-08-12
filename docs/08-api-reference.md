@@ -319,6 +319,9 @@ class BasePlot(ABC):
 | `ComparePlotDate` | `data, x, y1, y2, date, datelabel, **kwargs` |
 | `BarWithDates` | `data, x, y, interval: int = 1, **kwargs` |
 | `ResidualPlot` | `data, x, y, date, datelabel, interval: int = 1` |
+| `ScatterPlot` | `data, x, y, alpha=0.6, **kwargs` → `sns.scatterplot` (`hue`, `size`, `style`) |
+| `RegPlot` | `data, x, y, fit_reg=True, lowess=False, order=1, scatter=True, color="crimson", **kwargs` → `sns.regplot` |
+| `CorrelationHeatmap` | `data, columns=None, method="pearson", cmap="vlag", annot=True, fmt=".2f", **kwargs` |
 | `HistogramPlot` | `data: np.ndarray, bins=None, kde=False, color="skyblue", alpha=0.7, **kwargs` |
 | `DistPlot` | `distribution, x_range=None, samples=1000, color="crimson", linewidth=2, label=None, **kwargs` |
 | `ACFPlot` | `data, nlags=40, alpha=0.05, color="steelblue", band_color="gray", **kwargs` |
@@ -348,6 +351,13 @@ results. `HistogramPlot` uses `stat="density"` so a pdf overlays correctly; `Dis
 `NullPlot` composes `HistogramPlot` and `VerticalLine`: grey cloud, coloured line. It writes
 the observed value and its p-value into the legend, using `≤` when the p-value is at the
 floor set by `n_iter`. Pass `label` to write your own.
+
+`RegPlot` wraps `sns.regplot`, the axes-level counterpart to `sns.lmplot` — `lmplot` builds
+its own figure and cannot draw onto a `BasePlot` axis. `lowess=True` with `order != 1` raises:
+both are answers to "what shape", and only one can apply. Pass `scatter=False` to layer a fit
+over an existing `ScatterPlot`. `CorrelationHeatmap` drops non-numeric columns, raises when
+nothing numeric is left, and pins the colour scale to [-1, 1] centred on 0 — override with
+`vmin` / `vmax` / `center` in `**kwargs` if you must.
 
 ---
 
@@ -385,6 +395,10 @@ of `likelihood`, `ks`, `combined`; `--method` is passed to `scipy.stats.fit`.
 - `ACFPlot` raises `ValueError` if the data contains NaNs, rather than passing them through.
   `statsmodels.tsa.stattools.acf` does not raise on missing values — it silently returns an
   all-NaN result — so a decomposition's residual needs `.dropna()` before it reaches `ACFPlot`.
+- A seaborn function called with `x=` and `y=` as column names writes those names onto the
+  axes, overwriting the `xlabel` / `ylabel` from `PlotSettings`. `create_figure` runs first,
+  seaborn runs second, and second wins. Set the labels on the axis after plotting when the
+  column name is not the label you want a reader to see.
 - `binomial` and `nbinom` fit two shape parameters (`n`, `p`) from the sample mean and
   variance alone. If `n` is not known independently, it is not identifiable from the data —
   many `(n, p)` pairs with the same `n·p` fit about as well, so a fitted `n` should be treated
