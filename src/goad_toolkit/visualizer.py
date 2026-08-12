@@ -412,6 +412,176 @@ class ACFPlot(BasePlot):
         return self.fig, self.ax
 
 
+class ScatterPlot(BasePlot):
+    """Two variables against each other. The first plot of any relation question.
+
+    Summary statistics are not a substitute: Anscombe's quartet has four datasets
+    with the same means, variances, correlation and regression line, and four
+    different pictures. Look before you fit.
+    """
+
+    def build(
+        self,
+        data: pd.DataFrame,
+        x: str,
+        y: str,
+        alpha: float = 0.6,
+        **kwargs,
+    ):
+        """
+        Draw a scatter of `y` against `x`.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Frame holding both columns.
+        x, y : str
+            Columns to put on each axis.
+        alpha : float
+            Point transparency. Below 1 by default: overplotting is the standard
+            way a scatter lies, and a solid blob hides its own density. On a
+            large frame, sample as well — alpha alone stops helping.
+        **kwargs : Additional keyword arguments passed to `sns.scatterplot`,
+            including `hue`, `size` and `style`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        sns.scatterplot(data=data, x=x, y=y, alpha=alpha, ax=self.ax, **kwargs)
+        return self.fig, self.ax
+
+
+class RegPlot(BasePlot):
+    """A fitted line through a scatter — after the scatter has told you which kind.
+
+    `fit_reg=False` for no line, `order=2` for an obvious curve, `lowess=True` to
+    let the data choose the shape. A straight line comes back with a slope and an
+    r-value for a parabola and for a step function too, so the choice of fit is a
+    claim about the relationship, not a formatting option.
+    """
+
+    def build(
+        self,
+        data: pd.DataFrame,
+        x: str,
+        y: str,
+        fit_reg: bool = True,
+        lowess: bool = False,
+        order: int = 1,
+        scatter: bool = True,
+        color: str = "crimson",
+        **kwargs,
+    ):
+        """
+        Draw a regression fit of `y` on `x`, with the scatter under it.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Frame holding both columns.
+        x, y : str
+            Columns to put on each axis.
+        fit_reg : bool
+            Draw the fitted line. False leaves the scatter alone.
+        lowess : bool
+            Fit a locally weighted curve instead of a polynomial. Seaborn draws
+            no confidence band around it.
+        order : int
+            Polynomial order. 1 is a straight line, 2 a parabola.
+        scatter : bool
+            Draw the points as well. Pass False to layer a fit over an existing
+            `ScatterPlot` with `plot_on`.
+        color : str
+            Colour of the line (and of the points, when `scatter` is True).
+        **kwargs : Additional keyword arguments passed to `sns.regplot`,
+            including `ci`, `robust` and `logx`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if lowess and order != 1:
+            raise ValueError(
+                f"lowess=True fits its own shape, so order={order} cannot also apply; "
+                "pick one."
+            )
+
+        sns.regplot(
+            data=data,
+            x=x,
+            y=y,
+            fit_reg=fit_reg,
+            lowess=lowess,
+            order=order,
+            scatter=scatter,
+            color=color,
+            ax=self.ax,
+            **kwargs,
+        )
+        return self.fig, self.ax
+
+
+class CorrelationHeatmap(BasePlot):
+    """A correlation matrix, for finding out where to look. Not a ranking.
+
+    Correlations between correlated predictors are not independent evidence, so
+    the strongest cell is not "the variable that matters" — it is a pair worth
+    plotting. Every finding here still has to survive a scatter.
+    """
+
+    def build(
+        self,
+        data: pd.DataFrame,
+        columns: Optional[List[str]] = None,
+        method: str = "pearson",
+        cmap: str = "vlag",
+        annot: bool = True,
+        fmt: str = ".2f",
+        **kwargs,
+    ):
+        """
+        Draw the correlation matrix of a frame's numeric columns.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Frame to correlate. Non-numeric columns are dropped.
+        columns : Optional[List[str]]
+            Restrict to these columns, in this order.
+        method : str
+            Passed to `DataFrame.corr`: `"pearson"` measures a straight-line
+            relationship, `"spearman"` any monotone one. A pair that is strong
+            under spearman and weak under pearson is curved, not absent.
+        cmap : str
+            Colormap. Diverging by default, and the scale is pinned to
+            [-1, 1] around 0: correlation runs in two directions from a
+            meaningful centre, and a sequential map hides that.
+        annot : bool
+            Write each coefficient into its cell.
+        fmt : str
+            Format for the annotations.
+        **kwargs : Additional keyword arguments passed to `sns.heatmap`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        frame = data[columns] if columns is not None else data
+        matrix = frame.corr(method=method, numeric_only=True)  # type: ignore[arg-type]
+        if matrix.empty:
+            raise ValueError(
+                "No numeric columns to correlate; "
+                f"got dtypes {dict(frame.dtypes.astype(str))}"
+            )
+
+        kwargs.setdefault("vmin", -1)
+        kwargs.setdefault("vmax", 1)
+        kwargs.setdefault("center", 0)
+        sns.heatmap(matrix, cmap=cmap, annot=annot, fmt=fmt, ax=self.ax, **kwargs)
+        return self.fig, self.ax
+
+
 class HistogramPlot(BasePlot):
     """Plot a histogram using seaborn."""
 
