@@ -288,6 +288,9 @@ class PlotSettings:
     grid: bool = False
     grid_alpha: Optional[float] = None
     subplot_titles: List[str] = field(default_factory=list)
+    highlight: List[str] = field(default_factory=list)   # defaults for HighlightCategory
+    base_color: str = "lightgrey"
+    highlight_color: str = "crimson"
 
 @dataclass
 class FitPlotSettings:
@@ -317,6 +320,11 @@ class BasePlot(ABC):
 | `VerticalDate` | `date: str, label: str` |
 | `VerticalLine` | `x: float, label=None, color="crimson", linestyle="--", linewidth=2, **kwargs` |
 | `ComparePlotDate` | `data, x, y1, y2, date, datelabel, **kwargs` |
+| `BarPlot` | `data, x, y, order=None, **kwargs` → `sns.barplot` |
+| `GroupedBarPlot` | `data, x, y, hue, order=None, hue_order=None, **kwargs` |
+| `HeatmapPlot` | `data, index=None, columns=None, values=None, aggfunc="mean", cmap="rocket_r", annot=True, fmt=".1f", **kwargs` |
+| `BarbellPlot` | `data, category, start, end, start_label="before", end_label="after", start_color="lightgrey", end_color="crimson", line_color="lightgrey", markersize=80, **kwargs` |
+| `HighlightCategory` | `categories=None, color=None, base_color=None, axis="x"` |
 | `BarWithDates` | `data, x, y, interval: int = 1, **kwargs` |
 | `ResidualPlot` | `data, x, y, date, datelabel, interval: int = 1` |
 | `ScatterPlot` | `data, x, y, alpha=0.6, **kwargs` → `sns.scatterplot` (`hue`, `size`, `style`) |
@@ -351,6 +359,18 @@ results. `HistogramPlot` uses `stat="density"` so a pdf overlays correctly; `Dis
 `NullPlot` composes `HistogramPlot` and `VerticalLine`: grey cloud, coloured line. It writes
 the observed value and its p-value into the legend, using `≤` when the p-value is at the
 floor set by `n_iter`. Pass `label` to write your own.
+
+`HighlightCategory` is a layer: it recolours the bars already on the axis rather than drawing
+any, so it composes over anything that produced bars. `categories`, `color` and `base_color`
+fall back to `highlight`, `highlight_color` and `base_color` on `PlotSettings`. Highlighting a
+category that is not on the axis raises and lists the ones that are; so does applying it to an
+axis with no bars. Zero-size patches are skipped — seaborn keeps its legend proxies in
+`ax.patches`, and recolouring those would rewrite the legend's swatches.
+
+`HeatmapPlot` pivots when given both `index` and `columns` (and `values`), and draws `data`
+as a matrix when given neither; one without the other raises. Its scale is sequential,
+unlike `CorrelationHeatmap`'s. `BarbellPlot` draws rows in the frame's own order — sort by the
+size of the change upstream, where the choice is recorded.
 
 `RegPlot` wraps `sns.regplot`, the axes-level counterpart to `sns.lmplot` — `lmplot` builds
 its own figure and cannot draw onto a `BasePlot` axis. `lowess=True` with `order != 1` raises:

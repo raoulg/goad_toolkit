@@ -3,20 +3,27 @@ import matplotlib
 matplotlib.use("Agg")
 
 import numpy as np  # noqa: E402
+import matplotlib.colors as mcolors  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
+import seaborn as sns  # noqa: E402
 from scipy import stats  # noqa: E402
 
 from goad_toolkit.analytics import NullResult  # noqa: E402
 from goad_toolkit.visualizer import (  # noqa: E402
     ACFPlot,
+    BarbellPlot,
+    BarPlot,
     BarWithDates,
     ComparePlot,
     ComparePlotDate,
     CorrelationHeatmap,
     DecomposePlot,
     ECDFPlot,
+    GroupedBarPlot,
+    HeatmapPlot,
+    HighlightCategory,
     LinePlot,
     NullPlot,
     PlotSettings,
@@ -255,6 +262,282 @@ def test_null_plot_reports_a_bounded_p_value_at_the_floor():
 
     label = ax.get_legend().get_texts()[0].get_text()
     assert "≤" in label
+
+
+@pytest.fixture
+def categories() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "species": ["Adelie", "Chinstrap", "Gentoo"],
+            "mass": [3700.0, 3733.0, 5076.0],
+        }
+    )
+
+
+def facecolours(ax) -> list:
+    return [patch.get_facecolor() for patch in ax.patches]
+
+
+def test_bar_plot_draws_one_bar_per_category(categories):
+    fig, ax = BarPlot(PlotSettings()).plot(data=categories, x="species", y="mass")
+
+    assert fig is not None
+    assert len(ax.patches) == 3
+    assert [t.get_text() for t in ax.get_xticklabels()] == [
+        "Adelie",
+        "Chinstrap",
+        "Gentoo",
+    ]
+
+
+def test_bar_plot_takes_an_explicit_order(categories):
+    order = ["Gentoo", "Adelie", "Chinstrap"]
+
+    fig, ax = BarPlot(PlotSettings()).plot(
+        data=categories, x="species", y="mass", order=order
+    )
+
+    assert [t.get_text() for t in ax.get_xticklabels()] == order
+
+
+def test_bar_plot_and_highlight_compose(categories):
+    bars = BarPlot(PlotSettings(highlight=["Gentoo"]))
+    bars.plot(data=categories, x="species", y="mass")
+
+    bars.plot_on(HighlightCategory(bars.settings))
+
+    colours = facecolours(bars.ax)
+    assert colours[2] == mcolors.to_rgba("crimson")
+    assert colours[0] == mcolors.to_rgba("lightgrey")
+
+
+@pytest.fixture
+def two_categories() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "species": ["Adelie", "Adelie", "Gentoo", "Gentoo"],
+            "island": ["Biscoe", "Dream"] * 2,
+            "mass": [3700.0, 3900.0, 5000.0, 5100.0],
+        }
+    )
+
+
+def test_grouped_bar_plot_draws_a_bar_per_pair(two_categories):
+    fig, ax = GroupedBarPlot(PlotSettings()).plot(
+        data=two_categories, x="species", y="mass", hue="island"
+    )
+
+    bars = [p for p in ax.patches if p.get_height() != 0]
+    assert len(bars) == 4
+    legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert legend_labels == ["Biscoe", "Dream"]
+
+
+def test_heatmap_plot_pivots_a_long_frame(two_categories):
+    fig, ax = HeatmapPlot(PlotSettings()).plot(
+        data=two_categories,
+        index="species",
+        columns="island",
+        values="mass",
+        aggfunc="mean",
+    )
+
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["Biscoe", "Dream"]
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["Adelie", "Gentoo"]
+    assert len(ax.texts) == 4
+
+
+def test_heatmap_plot_draws_a_matrix_as_it_is():
+    matrix = pd.DataFrame(
+        [[1.0, 2.0], [3.0, 4.0]], index=["a", "b"], columns=["x", "y"]
+    )
+
+    fig, ax = HeatmapPlot(PlotSettings()).plot(data=matrix)
+
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["a", "b"]
+
+
+def test_heatmap_plot_rejects_half_a_pivot(two_categories):
+    with pytest.raises(ValueError, match="both index and columns"):
+        HeatmapPlot(PlotSettings()).plot(data=two_categories, index="species")
+
+
+def test_heatmap_plot_needs_values_to_pivot(two_categories):
+    with pytest.raises(ValueError, match="values column"):
+        HeatmapPlot(PlotSettings()).plot(
+            data=two_categories, index="species", columns="island"
+        )
+
+
+@pytest.fixture
+def before_after() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "team": ["a", "b", "c"],
+            "before": [10.0, 20.0, 30.0],
+            "after": [15.0, 18.0, 45.0],
+        }
+    )
+
+
+def test_barbell_plot_joins_each_pair(before_after):
+    fig, ax = BarbellPlot(PlotSettings()).plot(
+        data=before_after, category="team", start="before", end="after"
+    )
+
+    assert fig is not None
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["a", "b", "c"]
+    assert len(ax.collections) == 3  # the connecting lines, plus two sets of dots
+    starts = ax.collections[1].get_offsets()
+    ends = ax.collections[2].get_offsets()
+    assert list(starts[:, 0]) == [10.0, 20.0, 30.0]
+    assert list(ends[:, 0]) == [15.0, 18.0, 45.0]
+
+
+def test_barbell_plot_labels_both_ends(before_after):
+    fig, ax = BarbellPlot(PlotSettings()).plot(
+        data=before_after,
+        category="team",
+        start="before",
+        end="after",
+        start_label="2023",
+        end_label="2024",
+    )
+
+    legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert legend_labels == ["2023", "2024"]
+
+
+def test_barbell_plot_names_a_missing_column(before_after):
+    with pytest.raises(ValueError, match="after_2024"):
+        BarbellPlot(PlotSettings()).plot(
+            data=before_after, category="team", start="before", end="after_2024"
+        )
+
+
+def test_highlight_colours_one_category_and_greys_the_rest(categories):
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+    sns.barplot(data=categories, x="species", y="mass", ax=host.ax)
+
+    host.plot_on(HighlightCategory(PlotSettings()), categories=["Chinstrap"])
+
+    colours = facecolours(host.ax)
+    assert colours[1] == mcolors.to_rgba("crimson")
+    assert colours[0] == colours[2] == mcolors.to_rgba("lightgrey")
+
+
+def test_highlight_reads_its_defaults_from_the_settings(categories):
+    settings = PlotSettings(
+        highlight=["Gentoo"], base_color="whitesmoke", highlight_color="navy"
+    )
+    host = LinePlot(settings)
+    host.create_figure()
+    sns.barplot(data=categories, x="species", y="mass", ax=host.ax)
+
+    host.plot_on(HighlightCategory(settings))
+
+    colours = facecolours(host.ax)
+    assert colours[2] == mcolors.to_rgba("navy")
+    assert colours[0] == mcolors.to_rgba("whitesmoke")
+
+
+def test_highlight_call_arguments_win_over_the_settings(categories):
+    settings = PlotSettings(highlight=["Gentoo"], highlight_color="navy")
+    host = LinePlot(settings)
+    host.create_figure()
+    sns.barplot(data=categories, x="species", y="mass", ax=host.ax)
+
+    host.plot_on(HighlightCategory(settings), categories=["Adelie"], color="orange")
+
+    colours = facecolours(host.ax)
+    assert colours[0] == mcolors.to_rgba("orange")
+    assert colours[2] == mcolors.to_rgba("lightgrey")
+
+
+def test_highlight_works_over_a_chart_pandas_drew(categories):
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+    categories.plot.bar(x="species", y="mass", ax=host.ax, legend=False)
+
+    host.plot_on(HighlightCategory(PlotSettings()), categories=["Adelie"])
+
+    colours = facecolours(host.ax)
+    assert colours[0] == mcolors.to_rgba("crimson")
+    assert colours[1] == mcolors.to_rgba("lightgrey")
+
+
+def test_highlight_covers_every_bar_of_a_grouped_category():
+    frame = pd.DataFrame(
+        {
+            "species": ["Adelie", "Adelie", "Gentoo", "Gentoo"],
+            "island": ["Biscoe", "Dream"] * 2,
+            "mass": [3700.0, 3900.0, 5000.0, 5100.0],
+        }
+    )
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+    sns.barplot(data=frame, x="species", y="mass", hue="island", ax=host.ax)
+
+    swatches_before = [
+        p.get_facecolor() for p in host.ax.patches if p.get_height() == 0
+    ]
+
+    host.plot_on(HighlightCategory(PlotSettings()), categories=["Gentoo"])
+
+    bars = [p for p in host.ax.patches if p.get_height() != 0]
+    highlighted = [p for p in bars if p.get_facecolor() == mcolors.to_rgba("crimson")]
+    assert len(highlighted) == 2  # both island bars of the Gentoo group
+    # The legend's proxy artists are zero-size patches on the same axis; they
+    # are data-free and must keep the colours seaborn gave them.
+    swatches_after = [p.get_facecolor() for p in host.ax.patches if p.get_height() == 0]
+    assert swatches_after == swatches_before
+
+
+def test_highlight_handles_horizontal_bars(categories):
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+    sns.barplot(data=categories, y="species", x="mass", ax=host.ax)
+
+    host.plot_on(HighlightCategory(PlotSettings()), categories=["Gentoo"], axis="y")
+
+    colours = facecolours(host.ax)
+    assert colours[2] == mcolors.to_rgba("crimson")
+    assert colours[0] == mcolors.to_rgba("lightgrey")
+
+
+def test_highlight_names_the_available_categories_when_asked_for_a_missing_one(
+    categories,
+):
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+    sns.barplot(data=categories, x="species", y="mass", ax=host.ax)
+
+    with pytest.raises(ValueError, match="Emperor"):
+        host.plot_on(HighlightCategory(PlotSettings()), categories=["Emperor"])
+
+
+def test_highlight_without_a_category_raises(categories):
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+    sns.barplot(data=categories, x="species", y="mass", ax=host.ax)
+
+    with pytest.raises(ValueError, match="Nothing to highlight"):
+        host.plot_on(HighlightCategory(PlotSettings()))
+
+
+def test_highlight_on_an_empty_axis_says_to_draw_first():
+    with pytest.raises(ValueError, match="draw the chart first"):
+        HighlightCategory(PlotSettings()).plot(categories=["Adelie"])
+
+
+def test_highlight_rejects_an_unknown_axis(categories):
+    host = LinePlot(PlotSettings())
+    host.create_figure()
+    sns.barplot(data=categories, x="species", y="mass", ax=host.ax)
+
+    with pytest.raises(ValueError, match="axis must be"):
+        host.plot_on(HighlightCategory(PlotSettings()), categories=["Adelie"], axis="z")
 
 
 @pytest.fixture
