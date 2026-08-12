@@ -11,7 +11,7 @@ Pydantic settings objects. Both have a readable `__repr__`.
 
 ```python
 class FileConfig(BaseModel):
-    data_dir: Path = Path.home() / ".cache/mads_datasets/covid"
+    data_dir: Path = Path.home() / ".cache/goad/covid"
     filename: Path = Path("covid.csv")
     url: str = "https://raw.githubusercontent.com/mzelst/covid-19/master/data/rivm_by_day.csv"
     date_column: Optional[str] = "date"
