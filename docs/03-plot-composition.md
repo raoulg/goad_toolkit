@@ -148,7 +148,16 @@ step 3.
 | `LinePlot` | `sns.lineplot` | the primitive most compositions build on |
 | `ComparePlot` | two lines with labels | `LinePlot` twice via `plot_on` |
 | `VerticalDate` | a labelled vertical line at a date | a layer, not a plot |
+| `VerticalLine` | the same at a number | a layer, not a plot |
 | `ComparePlotDate` | `ComparePlot` + `VerticalDate` | |
+| `BarPlot` | `sns.barplot`, one bar per category | see [Five families §4.1](04-five-families.md) |
+| `GroupedBarPlot` | bars split by `hue` | two categorical variables at once |
+| `HeatmapPlot` | `sns.heatmap`, pivoting the frame if asked | when both variables have many levels |
+| `BarbellPlot` | before and after per category, joined | the change is the message |
+| `HighlightCategory` | recolours bars: grey, plus the one that matters | a layer, and it needs no help from what drew them |
+| `ScatterPlot` | `sns.scatterplot` | the first plot of any relation question |
+| `RegPlot` | `sns.regplot` — `fit_reg`, `lowess`, `order` | `scatter=False` layers it over a `ScatterPlot` |
+| `CorrelationHeatmap` | `.corr()` as a heatmap, scale pinned to [-1, 1] | where to look next, not a ranking |
 | `BarWithDates` | bars with a month locator on the x axis | |
 | `ResidualPlot` | `BarWithDates` + `VerticalDate` | the residual-over-time view |
 | `DecomposePlot` | `seasonal_decompose`, one panel each | observed/trend/seasonal/residual, overrides `plot` |
@@ -158,6 +167,7 @@ step 3.
 | `PlotFits` | histogram + fitted pdf, one panel per fit | see [Distributions](05-distributions.md) |
 | `QQPlot` | sample quantiles vs. a distribution's theoretical quantiles | the tails, not the bulk — see [Distributions §5.5](05-distributions.md) |
 | `ECDFPlot` | one or two empirical CDFs, bin-free | the right tool for comparing two samples |
+| `NullPlot` | a shuffled statistic, with the observed value marked | `HistogramPlot` + `VerticalLine`, see [Models and residuals §6.7](06-models-and-residuals.md) |
 
 `HistogramPlot` defaults to `sqrt(n)` bins capped at 50. That default is a starting point,
 not an answer — bin count changes what a histogram appears to say, and choosing it is part of
@@ -175,6 +185,22 @@ mismatch actually shows up.
 
 `ECDFPlot` plots one sample, or two with `compare=`, as step functions of the empirical CDF —
 no bin width to choose, so nothing about the shape is a plotting decision.
+
+`HighlightCategory` is the clearest case for why layers beat settings. It recolours the bars
+already on the axis — grey for everything, one colour for the categories you name — so it
+works over `BarPlot`, over a bare `sns.barplot`, over pandas' `.plot.bar`, and over the
+`BasePlot` subclass you wrote yourself. None of them need to know it exists:
+
+```python
+settings = PlotSettings(title="Survival rate by deck", highlight=["D"])
+bars = BarPlot(settings)
+bars.plot(data=decks, x="deck", y="survival")
+bars.plot_on(HighlightCategory(settings))
+```
+
+`highlight`, `base_color` and `highlight_color` live on `PlotSettings` so that the call stays
+about the data, but they are only defaults — pass `categories=` at the call to override.
+Naming a category that is not on the axis raises, and lists the ones that are.
 
 ## 3.7 Writing your own plot
 

@@ -11,6 +11,7 @@ import seaborn as sns
 from loguru import logger
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf
 
@@ -29,13 +30,17 @@ class PlotSettings:
     grid: bool = False  # Added grid option
     grid_alpha: Optional[float] = None  # Grid transparency
     subplot_titles: List[str] = field(default_factory=list)  # Titles for subplots
+    highlight: List[str] = field(default_factory=list)  # Categories to pick out
+    base_color: str = "lightgrey"  # Everything that is not highlighted
+    highlight_color: str = "crimson"  # The categories that are
 
     def __repr__(self):
         return (
             f"PlotSettings(figsize={self.figsize},\n title={self.title},\n "
             f"xlabel={self.xlabel},\n ylabel={self.ylabel},\n "
             f"legend_title={self.legend_title},\n grid={self.grid},\n "
-            f"grid_alpha={self.grid_alpha}"
+            f"grid_alpha={self.grid_alpha},\n highlight={self.highlight},\n "
+            f"base_color={self.base_color},\n highlight_color={self.highlight_color}"
         )
 
 
@@ -254,6 +259,112 @@ class VerticalLine(BasePlot):
         return self.fig, self.ax
 
 
+class HighlightCategory(BasePlot):
+    """Grey everything, then colour the categories the plot is actually about.
+
+    A layer rather than a setting, so it needs no cooperation from whatever drew
+    the bars: it recolours the artists already on the axis. That works over a
+    `BasePlot` subclass you wrote yourself, over `sns.barplot`, and over pandas'
+    own `.plot.bar` — none of which have to know this class exists.
+
+    Colour is a pointer, not decoration. Twenty-one bars in twenty-one colours
+    say "look at all of these"; twenty grey bars and one red one say what the
+    plot is for.
+    """
+
+    def build(
+        self,
+        categories: Optional[List[str]] = None,
+        color: Optional[str] = None,
+        base_color: Optional[str] = None,
+        axis: str = "x",
+    ):
+        """
+        Recolour the bars on this axis: `categories` picked out, the rest grey.
+
+        Parameters:
+        -----------
+        categories : Optional[List[str]]
+            Category labels to highlight. Falls back to `settings.highlight`.
+        color : Optional[str]
+            Colour for the highlighted bars. Falls back to
+            `settings.highlight_color`.
+        base_color : Optional[str]
+            Colour for everything else. Falls back to `settings.base_color`.
+        axis : str
+            `"x"` for vertical bars (the categories are on the x-axis), `"y"`
+            for horizontal ones.
+
+        A grouped (`hue`) chart has several bars per category, and all of them
+        are recoloured together. Its legend is left as seaborn drew it, and so
+        stops describing the bars — drop the legend when you highlight, since
+        the highlight is now the message and the hue is not.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+        if axis not in ("x", "y"):
+            raise ValueError(f"axis must be 'x' or 'y', got '{axis}'")
+
+        wanted = (
+            list(categories)
+            if categories is not None
+            else list(self.settings.highlight)
+        )
+        if not wanted:
+            raise ValueError(
+                "Nothing to highlight: pass categories=[...] or set "
+                "PlotSettings(highlight=[...])"
+            )
+
+        # Bars are Rectangles, and seaborn parks zero-size ones in ax.patches as
+        # legend proxies: they carry no data, and recolouring them would rewrite
+        # the legend's swatches.
+        bars = [
+            patch
+            for patch in self.ax.patches
+            if isinstance(patch, Rectangle)
+            and (patch.get_width() != 0 or patch.get_height() != 0)
+        ]
+        if not bars:
+            raise ValueError(
+                "No bars on this axis to recolour. HighlightCategory is a layer — "
+                "draw the chart first, then apply it with plot_on."
+            )
+
+        if axis == "x":
+            ticks = self.ax.get_xticks()
+            labels = [text.get_text() for text in self.ax.get_xticklabels()]
+        else:
+            ticks = self.ax.get_yticks()
+            labels = [text.get_text() for text in self.ax.get_yticklabels()]
+
+        unknown = [category for category in wanted if category not in labels]
+        if unknown:
+            raise ValueError(
+                f"No category {unknown} on the {axis}-axis; it has {labels}"
+            )
+
+        color = color if color is not None else self.settings.highlight_color
+        base_color = base_color if base_color is not None else self.settings.base_color
+
+        for patch in bars:
+            if axis == "x":
+                centre = patch.get_x() + patch.get_width() / 2
+            else:
+                centre = patch.get_y() + patch.get_height() / 2
+            # Bars sit at their category's tick; the nearest one names them,
+            # which holds for grouped bars offset around it as well.
+            nearest = int(np.argmin(np.abs(np.asarray(ticks) - centre)))
+            label = labels[nearest] if nearest < len(labels) else ""
+            patch.set_facecolor(color if label in wanted else base_color)
+
+        return self.fig, self.ax
+
+
 class ComparePlotDate(BasePlot):
     def build(
         self,
@@ -275,6 +386,255 @@ class ComparePlotDate(BasePlot):
         if self.ax is None:
             raise ValueError("No axes available for plotting")
         self.ax.tick_params(axis="x", rotation=45)
+
+        return self.fig, self.ax
+
+
+class BarPlot(BasePlot):
+    """One bar per category. The plot for "how do these groups differ".
+
+    Ordering and the top-k cut are data decisions, so they belong in a
+    `Pipeline` rather than here — pass the frame already sorted, or hand
+    `order` through to seaborn. Alphabetical is almost never meaningful order,
+    and past a dozen bars nobody is comparing anything.
+
+    Colour is left to seaborn: one bar, one colour, and `HighlightCategory` on
+    top when a single category is the point.
+    """
+
+    def build(
+        self,
+        data: pd.DataFrame,
+        x: str,
+        y: str,
+        order: Optional[List[str]] = None,
+        **kwargs,
+    ):
+        """
+        Draw one bar per level of `x`.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Frame holding both columns.
+        x : str
+            Categorical column, one bar per level.
+        y : str
+            Numeric column. Seaborn aggregates it per category with the mean
+            unless you pass another `estimator`.
+        order : Optional[List[str]]
+            Category order. Seaborn's own order (first appearance) is used
+            when this is None.
+        **kwargs : Additional keyword arguments passed to `sns.barplot`,
+            including `estimator`, `errorbar`, `color` and `hue`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        sns.barplot(data=data, x=x, y=y, order=order, ax=self.ax, **kwargs)
+        return self.fig, self.ax
+
+
+class GroupedBarPlot(BasePlot):
+    """Two categorical variables at once: bars per group, split by `hue`.
+
+    Here colour carries data rather than emphasis, which is the one case where
+    a full palette is right. Past two or three hue levels the groups stop being
+    comparable — that is when the question wants `HeatmapPlot` instead.
+    """
+
+    def build(
+        self,
+        data: pd.DataFrame,
+        x: str,
+        y: str,
+        hue: str,
+        order: Optional[List[str]] = None,
+        hue_order: Optional[List[str]] = None,
+        **kwargs,
+    ):
+        """
+        Draw bars of `y` per level of `x`, split by `hue`.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Frame holding all three columns.
+        x, y : str
+            Category and value columns.
+        hue : str
+            Second categorical column. Required: without it this is `BarPlot`.
+        order, hue_order : Optional[List[str]]
+            Category and hue orders.
+        **kwargs : Additional keyword arguments passed to `sns.barplot`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        sns.barplot(
+            data=data,
+            x=x,
+            y=y,
+            hue=hue,
+            order=order,
+            hue_order=hue_order,
+            ax=self.ax,
+            **kwargs,
+        )
+        return self.fig, self.ax
+
+
+class HeatmapPlot(BasePlot):
+    """Two categorical variables with many levels each, as a grid.
+
+    Where a grouped bar chart runs out: twelve groups by seven hue levels is
+    unreadable as bars and legible as a grid. The scale is sequential by
+    default, because a count or a mean has a floor and no meaningful centre —
+    `CorrelationHeatmap` is the diverging case.
+    """
+
+    def build(
+        self,
+        data: pd.DataFrame,
+        index: Optional[str] = None,
+        columns: Optional[str] = None,
+        values: Optional[str] = None,
+        aggfunc: str = "mean",
+        cmap: str = "rocket_r",
+        annot: bool = True,
+        fmt: str = ".1f",
+        **kwargs,
+    ):
+        """
+        Draw a heatmap, pivoting the frame first when told how.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Long frame to pivot, or a matrix already shaped rows × columns.
+        index, columns : Optional[str]
+            Categorical columns for the rows and columns of the grid. Both
+            must be given to pivot; leave both out to plot `data` as it is.
+        values : Optional[str]
+            Column to aggregate. With `aggfunc="count"` any column will do.
+        aggfunc : str
+            Passed to `DataFrame.pivot_table`.
+        cmap : str
+            Colormap. Sequential by default, dark for high.
+        annot : bool
+            Write each cell's value into it.
+        fmt : str
+            Format for the annotations.
+        **kwargs : Additional keyword arguments passed to `sns.heatmap`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if (index is None) != (columns is None):
+            raise ValueError(
+                "Pass both index and columns to pivot, or neither to plot the "
+                "frame as it is"
+            )
+
+        if index is not None and columns is not None:
+            if values is None:
+                raise ValueError("Pivoting needs a values column to aggregate")
+            matrix = data.pivot_table(
+                index=index, columns=columns, values=values, aggfunc=aggfunc
+            )
+        else:
+            matrix = data
+
+        sns.heatmap(matrix, cmap=cmap, annot=annot, fmt=fmt, ax=self.ax, **kwargs)
+        return self.fig, self.ax
+
+
+class BarbellPlot(BasePlot):
+    """Before and after per category, with the gap between them drawn.
+
+    Two bar charts side by side make the reader subtract; a barbell draws the
+    subtraction. Use it when the *change* is the finding rather than either
+    level.
+    """
+
+    def build(
+        self,
+        data: pd.DataFrame,
+        category: str,
+        start: str,
+        end: str,
+        start_label: str = "before",
+        end_label: str = "after",
+        start_color: str = "lightgrey",
+        end_color: str = "crimson",
+        line_color: str = "lightgrey",
+        markersize: float = 80,
+        **kwargs,
+    ):
+        """
+        Draw one row per category, with a dot at `start`, a dot at `end`, and
+        a line joining them.
+
+        Parameters:
+        -----------
+        data : pd.DataFrame
+            Frame with one row per category. Rows are drawn in the order given
+            — sorting by the size of the change is usually what you want, and
+            it belongs upstream of the plot.
+        category : str
+            Column naming each row; becomes the y-axis labels.
+        start, end : str
+            Columns holding the two values to join.
+        start_label, end_label : str
+            Legend labels for the two dots.
+        start_color, end_color, line_color : str
+            Colours for the two dots and the line between them.
+        markersize : float
+            Dot size, passed to `ax.scatter` as `s`.
+        **kwargs : Additional keyword arguments passed to `ax.scatter`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        missing = [c for c in (category, start, end) if c not in data.columns]
+        if missing:
+            raise ValueError(f"Column(s) {missing} not in the data")
+
+        positions = np.arange(len(data))
+        starts = data[start].to_numpy()
+        ends = data[end].to_numpy()
+
+        self.ax.hlines(
+            y=positions, xmin=starts, xmax=ends, color=line_color, linewidth=2, zorder=1
+        )
+        self.ax.scatter(
+            starts,
+            positions,
+            s=markersize,
+            color=start_color,
+            label=start_label,
+            zorder=2,
+            **kwargs,
+        )
+        self.ax.scatter(
+            ends,
+            positions,
+            s=markersize,
+            color=end_color,
+            label=end_label,
+            zorder=2,
+            **kwargs,
+        )
+        self.ax.set_yticks(positions)
+        self.ax.set_yticklabels([str(label) for label in data[category]])
+        self.ax.legend()
 
         return self.fig, self.ax
 
@@ -572,7 +932,7 @@ class CorrelationHeatmap(BasePlot):
         if matrix.empty:
             raise ValueError(
                 "No numeric columns to correlate; "
-                f"got dtypes {dict(frame.dtypes.astype(str))}"
+                f"got dtypes { ({name: str(frame[name].dtype) for name in frame}) }"
             )
 
         kwargs.setdefault("vmin", -1)

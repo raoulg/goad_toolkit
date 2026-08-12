@@ -42,9 +42,22 @@ barbell when each group has a before and an after and the *change* is the point.
   labelled adds nothing and costs attention. Grey, plus colour on the one bar you are talking
   about.
 
-**In GOAD:** the category counts come from a `Pipeline` (`groupby` in a transform), and the
-bars from a `BasePlot` subclass over `sns.barplot`. Ordering and the top-k cut belong in the
-pipeline, so they are recorded, not in the plot call, where they are invisible.
+**In GOAD:** `BarPlot`, `GroupedBarPlot`, `HeatmapPlot` and `BarbellPlot`, with
+`HighlightCategory` layered on top when one category is the point.
+
+The category counts come from a `Pipeline` (`groupby` in a transform). Ordering and the top-k
+cut belong in the pipeline too, so they are recorded, not in the plot call, where they are
+invisible — which is why `BarPlot` draws the frame in the order it is handed and offers no
+`sort` of its own.
+
+The four are the same question at different sizes: one categorical variable is `BarPlot`, two
+is `GroupedBarPlot` until the legend gets long, and past that it is `HeatmapPlot`.
+`BarbellPlot` is the case where each group has a before and an after — two bar charts make the
+reader do the subtraction, a barbell draws it.
+
+Lesson 2 has you write a `BarPlot` of your own before any of this. That exercise is about the
+`BasePlot` extension point, and it is not made pointless by the library shipping one, any more
+than writing a sort is made pointless by `sorted` existing.
 
 ---
 
