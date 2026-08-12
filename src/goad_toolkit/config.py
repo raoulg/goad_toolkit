@@ -12,7 +12,7 @@ class FileConfig(BaseModel):
     index. The reader is picked from the file suffix (`.csv`, `.parquet`).
     """
 
-    data_dir: Path = Path.home() / ".cache/mads_datasets/covid"
+    data_dir: Path = Path.home() / ".cache/goad/covid"
     filename: Path = Path("covid.csv")
     url: str = (
         "https://raw.githubusercontent.com/mzelst/covid-19/master/data/rivm_by_day.csv"
