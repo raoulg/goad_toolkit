@@ -697,8 +697,8 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
             "did not suggest it",
         ),
         (
-            "If you shuffled the labels and re-measured, how often would you see something "
-            "this strong?",
+            f"If you shuffled the labels and re-measured, how often would you see something "
+            f"this strong? ({_models()} §6.7)",
             "The cheapest honest check available, and it needs no distributional theory at "
             "all.",
             "what gets shuffled, and a rough frequency",

@@ -158,6 +158,50 @@ They compose: the residual of a functional model is what you fit a distribution 
 composition is the loop from [Goal oriented analysis](01-goal-oriented-analysis.md) §1.3, and
 it is where the two halves of this library meet.
 
+## 6.7 The shuffle test
+
+§6.1 said a model is a statement about what is boring. The most boring statement available is
+*this label explains nothing*, and you can build that model without writing one down: shuffle
+the label column and measure again. Everything else stays as it was — the labels keep their
+proportions, the values keep their shape — and only the pairing between them is destroyed.
+Do it a thousand times and you have a picture of what your measurement does in a world where
+there is nothing to find.
+
+```python
+from goad_toolkit.analytics import NullDistribution
+from goad_toolkit.visualizer import NullPlot, PlotSettings
+
+def gap(frame):
+    means = frame.groupby("is_bot")["length"].mean()
+    return means[True] - means[False]
+
+result = NullDistribution(gap, n_iter=2000, seed=1).run(data, label="is_bot")
+NullPlot(PlotSettings(xlabel="difference in mean length")).plot(result=result)
+```
+
+The statistic is yours. `NullDistribution` runs the loop; deciding *what* to measure and
+*which* column to shuffle is the part that cannot be delegated, because it is the claim.
+
+Read the picture, not the number. Either the line stands clear of the grey cloud or it sits
+inside it, and that judgement needs no test, no distributional assumption, and no table of
+critical values. A finding sitting in the middle of its own null is not a weak finding; it is
+the null, and the honest write-up says so.
+
+Three things worth knowing before you quote a number from it:
+
+- **`p_value()` counts, it does not test.** It is the fraction of shuffles that matched or
+  beat what you saw, defaulting to two-sided. The observed arrangement is itself one of the
+  arrangements, so the count starts at one and the smallest reportable value is
+  `1 / (n_iter + 1)`. With 2000 shuffles, "p ≤ 0.001" is the strongest sentence available —
+  which is why `NullPlot` writes `≤` on the plot when you are at that floor.
+- **It answers one question.** Run it on the fifteenth thing you measured and it will happily
+  report the fifteenth thing as striking. The shuffle test defends against noise, not against
+  the garden of forking paths ([Analysis method](09-analysis-method.md) §9.6) — only writing
+  the question down first, or confirming on a slice you did not hunt on, does that.
+- **Shuffling the label tests the label.** If a confounder drives both the label and the
+  value, shuffling breaks the confounding too, and the test will confirm an association that
+  is real but not the mechanism you have in mind.
+
 ---
 
 Next: [Visual critique](07-visual-critique.md) — judging the picture you just made.

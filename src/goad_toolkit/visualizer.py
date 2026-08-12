@@ -14,7 +14,7 @@ from matplotlib.figure import Figure
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf
 
-from goad_toolkit.analytics import FitResult, Result
+from goad_toolkit.analytics import FitResult, NullResult, Result
 
 
 @dataclass
@@ -201,6 +201,56 @@ class VerticalDate(BasePlot):
             linewidth=2,
             label=label,
         )
+        return self.fig, self.ax
+
+
+class VerticalLine(BasePlot):
+    """Mark one value on the x-axis. `VerticalDate` is the same idea for dates."""
+
+    def build(
+        self,
+        x: float,
+        label: Optional[str] = None,
+        color: str = "crimson",
+        linestyle: str = "--",
+        linewidth: float = 2,
+        **kwargs,
+    ):
+        """
+        Draw a vertical line at `x`.
+
+        Parameters:
+        -----------
+        x : float
+            Position on the x-axis.
+        label : Optional[str]
+            Legend label. The line is drawn without a legend when this is None.
+        color : str
+            Line colour.
+        linestyle : str
+            Line style.
+        linewidth : float
+            Line width.
+        **kwargs : Additional keyword arguments passed to `ax.axvline`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        self.ax.axvline(
+            x=x,
+            color=color,
+            linestyle=linestyle,
+            linewidth=linewidth,
+            label=label,
+            **kwargs,
+        )
+        if label is not None:
+            self.ax.legend()
+
         return self.fig, self.ax
 
 
@@ -614,19 +664,95 @@ class ECDFPlot(BasePlot):
 
         self._draw(ax, np.asarray(data), color=color, label=label, **kwargs)
         if compare is not None:
-            self._draw(ax, np.asarray(compare), color=compare_color, label=compare_label, **kwargs)
+            self._draw(
+                ax,
+                np.asarray(compare),
+                color=compare_color,
+                label=compare_label,
+                **kwargs,
+            )
 
         if compare is not None or label:
             ax.legend()
 
         return self.fig, self.ax
 
-    def _draw(self, ax: Axes, values: np.ndarray, color: str, label: Optional[str], **kwargs) -> None:
+    def _draw(
+        self, ax: Axes, values: np.ndarray, color: str, label: Optional[str], **kwargs
+    ) -> None:
         if len(values) == 0:
             raise ValueError("ECDFPlot got no data to plot")
         sorted_values = np.sort(values)
         y = np.arange(1, len(sorted_values) + 1) / len(sorted_values)
         ax.step(sorted_values, y, where="post", color=color, label=label, **kwargs)
+
+
+class NullPlot(BasePlot):
+    """The shuffled statistic as a histogram, with the observed value marked.
+
+    This is what a `NullDistribution` is for. The grey cloud is what the
+    measurement does when the labels mean nothing; the coloured line is what it
+    did on the real data. Either the line stands outside the cloud or it does
+    not, and that judgement needs no test and no critical value.
+    """
+
+    def build(
+        self,
+        result: NullResult,
+        bins: Optional[int] = None,
+        alternative: str = "two-sided",
+        color: str = "lightgrey",
+        line_color: str = "crimson",
+        label: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Plot a null distribution and the observed statistic over it.
+
+        Parameters:
+        -----------
+        result : NullResult
+            Output of `NullDistribution.run`.
+        bins : Optional[int]
+            Number of histogram bins; `HistogramPlot`'s default is used if None.
+        alternative : str
+            Passed to `NullResult.p_value` for the annotation.
+        color : str
+            Colour of the null histogram. Grey by default: it is the backdrop,
+            not the finding.
+        line_color : str
+            Colour of the observed-value line.
+        label : Optional[str]
+            Legend label for the observed line. Built from the observed value
+            and its p-value when None.
+        **kwargs : Additional keyword arguments passed to `HistogramPlot`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        histogram = HistogramPlot(self.settings)
+        self.plot_on(histogram, data=result.null, bins=bins, color=color, **kwargs)
+
+        if label is None:
+            label = self._annotation(result, alternative)
+
+        line = VerticalLine(self.settings)
+        self.plot_on(line, x=result.observed, label=label, color=line_color)
+
+        return self.fig, self.ax
+
+    def _annotation(self, result: NullResult, alternative: str) -> str:
+        """Write the finding on the plot: the observed value and how rare it was."""
+        p_value = result.p_value(alternative)
+        # The count includes the observed arrangement, so p bottoms out at
+        # 1/(n+1) one-sided and twice that two-sided. At the floor, the honest
+        # statement is an upper bound rather than a number.
+        floor = 1 / (result.n_iter + 1)
+        if alternative == "two-sided":
+            floor = min(1.0, 2 * floor)
+        comparison = "≤" if p_value <= floor else "="
+        return f"observed = {result.observed:.3g}\np {comparison} {p_value:.3g}"
 
 
 @dataclass

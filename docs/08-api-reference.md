@@ -218,6 +218,33 @@ winner — it just has no `best_ks` winner.
 `log_likelihood` descending, with `FailedFit` rows (their `message` kept, metrics `NaN`)
 sorted last.
 
+The shuffle test — see [Models and residuals](06-models-and-residuals.md) §6.7:
+
+```python
+@dataclass
+class NullResult:
+    observed: float
+    null: np.ndarray                     # the statistic under n_iter shuffles
+    n_iter: int
+    seed: Optional[int] = None
+
+    def p_value(self, alternative: str = "two-sided") -> float
+    quantile: float                      # property, where observed sits in the null
+
+class NullDistribution:
+    def __init__(self, statistic: Callable[[pd.DataFrame], float],
+                 n_iter: int = 1000, seed: Optional[int] = None)
+
+    def run(self, data: pd.DataFrame, label: str) -> NullResult
+```
+
+`statistic` takes a frame and returns one number; `run` calls it once on the data as given,
+then once per shuffle of the `label` column. The caller's frame is never modified.
+`alternative` is one of `"two-sided"`, `"greater"`, `"less"`. Both one-sided counts include
+the observed arrangement, so `p_value` bottoms out at `1 / (n_iter + 1)` rather than 0. A
+`label` that is not a column raises `ValueError`, as does a statistic that is not finite on
+the unshuffled data; non-finite values among the shuffles are logged, not raised.
+
 ---
 
 ## 8.7 `goad_toolkit.models`
@@ -288,6 +315,7 @@ class BasePlot(ABC):
 | `LinePlot` | `data, **kwargs` → `sns.lineplot` |
 | `ComparePlot` | `data, x, y1, y2, **kwargs` |
 | `VerticalDate` | `date: str, label: str` |
+| `VerticalLine` | `x: float, label=None, color="crimson", linestyle="--", linewidth=2, **kwargs` |
 | `ComparePlotDate` | `data, x, y1, y2, date, datelabel, **kwargs` |
 | `BarWithDates` | `data, x, y, interval: int = 1, **kwargs` |
 | `ResidualPlot` | `data, x, y, date, datelabel, interval: int = 1` |
@@ -296,6 +324,7 @@ class BasePlot(ABC):
 | `ACFPlot` | `data, nlags=40, alpha=0.05, color="steelblue", band_color="gray", **kwargs` |
 | `QQPlot` | `data, distribution, color="steelblue", line_color="black", alpha=0.6, **kwargs` |
 | `ECDFPlot` | `data, compare=None, label="data", compare_label="compare", color="steelblue", compare_color="crimson", **kwargs` |
+| `NullPlot` | `result: NullResult, bins=None, alternative="two-sided", color="lightgrey", line_color="crimson", label=None, **kwargs` |
 
 ```python
 class PlotFits(BasePlot):
@@ -315,6 +344,10 @@ axis it was handed.
 `PlotFits` overrides `plot` rather than `build`, because the panel count depends on the fit
 results. `HistogramPlot` uses `stat="density"` so a pdf overlays correctly; `DistPlot` takes a
 **frozen** distribution and falls back to `pmf` when there is no `pdf`.
+
+`NullPlot` composes `HistogramPlot` and `VerticalLine`: grey cloud, coloured line. It writes
+the observed value and its p-value into the legend, using `≤` when the p-value is at the
+floor set by `n_iter`. Pass `label` to write your own.
 
 ---
 
