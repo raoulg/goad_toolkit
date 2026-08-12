@@ -213,6 +213,8 @@ class Pipeline:
 
     def __init__(self):
         self.transforms: Dict[str, Dict[str, Any]] = {}
+        self.intermediate: Dict[str, pd.DataFrame] = {}
+        self.input_columns: List[str] = []
 
     def add(
         self, transform_class: Type[T], name: Optional[str] = None, **kwargs
@@ -229,8 +231,25 @@ class Pipeline:
         self.transforms[name] = {"class": transform_class, "params": kwargs}
         return self  # Allow method chaining
 
-    def apply(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Apply all transformations in the pipeline."""
+    def apply(
+        self, data: pd.DataFrame, keep_intermediate: bool = False
+    ) -> pd.DataFrame:
+        """Apply all transformations in the pipeline.
+
+        Args:
+            data: Frame to transform. It is never modified.
+            keep_intermediate: Keep the frame as it stood after every step in
+                `self.intermediate`, and the input's columns in
+                `self.input_columns`, so `report()` can say which step did what.
+                Off by default: it holds one full copy of the frame per step.
+
+        Returns:
+            The frame after every transform, whether or not intermediates were
+            kept — turning introspection on does not change what you get back.
+        """
+        self.intermediate = {}
+        self.input_columns = list(data.columns)
+
         # Make a single copy at the pipeline level
         result = data.copy() if len(self.transforms) > 0 else data
         for name, transform_config in tqdm(
@@ -240,7 +259,45 @@ class Pipeline:
             params = transform_config["params"]
             transform = transform_class(name=name, **params)
             result = transform(result)
+            if keep_intermediate:
+                # A copy, not a reference: the steps mutate one frame in place,
+                # so a stored reference would show every step holding the final
+                # columns and nothing would look like it had done anything.
+                self.intermediate[name] = result.copy()
         return result
+
+    def report(self) -> pd.DataFrame:
+        """One row per step: how many rows survived it, and which columns it added.
+
+        The answer to "which step broke it", without dismantling the pipeline
+        back into loose cells. Needs `apply(..., keep_intermediate=True)` first.
+
+        Returns:
+            A frame with one row per step: `step`, `rows`, `columns`, `added`
+            and `removed`, in the order the steps ran.
+        """
+        if not self.intermediate:
+            raise ValueError(
+                "No intermediate frames to report on. Run "
+                "apply(data, keep_intermediate=True) first."
+            )
+
+        rows = []
+        previous = list(self.input_columns)
+        for name, frame in self.intermediate.items():
+            current = list(frame.columns)
+            rows.append(
+                {
+                    "step": name,
+                    "rows": len(frame),
+                    "columns": len(current),
+                    "added": ", ".join(c for c in current if c not in previous),
+                    "removed": ", ".join(c for c in previous if c not in current),
+                }
+            )
+            previous = current
+
+        return pd.DataFrame(rows)
 
     def __getitem__(self, key: str) -> Dict[str, Any]:
         """Get a specific transform configuration by name."""

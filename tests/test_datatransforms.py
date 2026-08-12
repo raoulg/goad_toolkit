@@ -1,7 +1,12 @@
 import pandas as pd
 import pytest
 
-from goad_toolkit.datatransforms import Pipeline, RegexFeature, TimeFeatures
+from goad_toolkit.datatransforms import (
+    Pipeline,
+    RegexFeature,
+    TimeFeatures,
+    TransformBase,
+)
 
 
 @pytest.fixture
@@ -165,3 +170,88 @@ def test_feature_is_the_column_name_and_name_is_the_step(messages):
     assert "addressed_to" in result.columns
     assert "mentions" not in result.columns
     assert "mentions" in repr(pipeline)
+
+
+class KeepFirst(TransformBase):
+    """A transform that drops rows, so a report has something to report."""
+
+    def transform(self, data: pd.DataFrame, n: int) -> pd.DataFrame:
+        return data.head(n)
+
+
+def test_apply_keeps_nothing_by_default(data):
+    pipeline = Pipeline()
+    pipeline.add(TimeFeatures, column="timestamp", features=["hour"])
+
+    pipeline.apply(data)
+
+    assert pipeline.intermediate == {}
+
+
+def test_apply_keeps_a_frame_per_step_when_asked(data):
+    pipeline = Pipeline()
+    pipeline.add(TimeFeatures, name="calendar", column="timestamp", features=["hour"])
+    pipeline.add(TimeFeatures, name="naming", column="timestamp", features=["day_name"])
+
+    result = pipeline.apply(data, keep_intermediate=True)
+
+    assert list(pipeline.intermediate) == ["calendar", "naming"]
+    # Each step is kept as it stood, not as a view of the finished frame.
+    assert "hour" in pipeline.intermediate["calendar"].columns
+    assert "day_name" not in pipeline.intermediate["calendar"].columns
+    assert "day_name" in pipeline.intermediate["naming"].columns
+    assert "day_name" in result.columns
+
+
+def test_keeping_intermediates_does_not_change_the_result(data):
+    kept = Pipeline()
+    kept.add(TimeFeatures, column="timestamp", features=["hour"])
+
+    plain = Pipeline()
+    plain.add(TimeFeatures, column="timestamp", features=["hour"])
+
+    pd.testing.assert_frame_equal(
+        kept.apply(data, keep_intermediate=True), plain.apply(data)
+    )
+
+
+def test_a_second_apply_replaces_the_kept_frames(data):
+    pipeline = Pipeline()
+    pipeline.add(TimeFeatures, column="timestamp", features=["hour"])
+
+    pipeline.apply(data, keep_intermediate=True)
+    pipeline.apply(data)
+
+    assert pipeline.intermediate == {}
+
+
+def test_report_names_the_columns_each_step_added(data):
+    pipeline = Pipeline()
+    pipeline.add(TimeFeatures, name="calendar", column="timestamp", features=["hour"])
+    pipeline.add(TimeFeatures, name="naming", column="timestamp", features=["day_name"])
+
+    pipeline.apply(data, keep_intermediate=True)
+    report = pipeline.report()
+
+    assert list(report["step"]) == ["calendar", "naming"]
+    assert list(report["added"]) == ["hour", "day_name"]
+    assert list(report["removed"]) == ["", ""]
+    assert list(report["rows"]) == [len(data), len(data)]
+
+
+def test_report_shows_where_the_rows_went(data):
+    pipeline = Pipeline()
+    pipeline.add(TimeFeatures, name="calendar", column="timestamp", features=["hour"])
+    pipeline.add(KeepFirst, name="first_two", n=2)
+
+    pipeline.apply(data, keep_intermediate=True)
+    report = pipeline.report()
+
+    assert list(report["rows"]) == [len(data), 2]
+
+
+def test_report_without_intermediates_says_what_to_do():
+    pipeline = Pipeline()
+
+    with pytest.raises(ValueError, match="keep_intermediate=True"):
+        pipeline.report()

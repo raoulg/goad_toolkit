@@ -199,9 +199,31 @@ will not warn you. Write the steps in the order you would do them by hand.
 you would want to run again on new data. A one-off `df[df.author == "Alice"]` while you are
 poking around is a notebook cell, and should stay one.
 
-**Debugging.** When a pipeline produces something surprising, add the steps back one at a
-time rather than dismantling it into cells — the moment it becomes cells again you have lost
-the record of what you did, which is the thing you were trying to keep.
+**Debugging.** When a pipeline produces something surprising, do not dismantle it into cells:
+the moment it becomes cells again you have lost the record of what you did, which is the
+thing you were trying to keep. Ask it what it did instead.
+
+```python
+result = pipeline.apply(data, keep_intermediate=True)
+pipeline.report()
+```
+
+```
+     step  rows  columns          added  removed
+ calendar  4083        9  hour, day_name
+  weekend  4083       10      is_weekend
+   window  3961       10
+```
+
+`report()` gives one row per step: how many rows survived it, how many columns the frame had
+afterwards, and which columns that step added or removed. The step where the row count falls
+off a cliff is the one filtering more than you meant it to, and a step with an empty `added`
+is a step that silently did nothing.
+
+`pipeline.intermediate` holds the frame as it stood after each step, keyed by step name, so
+you can look at the rows themselves once `report()` has told you where to look. Both are off
+by default — keeping them costs one full copy of the frame per step — and turning them on
+does not change what `apply` returns.
 
 ---
 

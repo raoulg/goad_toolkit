@@ -365,6 +365,68 @@ class HighlightCategory(BasePlot):
         return self.fig, self.ax
 
 
+class Annotate(BasePlot):
+    """Write the finding on the plot, where a reader with thirty seconds looks.
+
+    The last question in the visual critique is whether the finding is written
+    down. Axis labels say what the numbers are; the annotation says what you
+    concluded, and it is the only part most readers will read.
+    """
+
+    def build(
+        self,
+        text: str,
+        xy: Tuple[float, float],
+        xytext: Optional[Tuple[float, float]] = None,
+        arrow: bool = True,
+        color: str = "black",
+        fontsize: float = 11,
+        **kwargs,
+    ):
+        """
+        Place `text` on the axis, optionally with an arrow to the point.
+
+        Parameters:
+        -----------
+        text : str
+            What you concluded. A sentence, not a label.
+        xy : Tuple[float, float]
+            Point in data coordinates the text is about.
+        xytext : Optional[Tuple[float, float]]
+            Where the text itself sits, in data coordinates. Defaults to `xy`,
+            which places the text on the point and draws no arrow.
+        arrow : bool
+            Draw an arrow from the text to `xy`. Ignored when `xytext` is None,
+            since an arrow from a point to itself is not a thing.
+        color : str
+            Text colour.
+        fontsize : float
+            Text size.
+        **kwargs : Additional keyword arguments passed to `ax.annotate`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        arrowprops = None
+        if xytext is not None and arrow:
+            arrowprops = {"arrowstyle": "->", "color": color, "linewidth": 1}
+
+        self.ax.annotate(
+            text,
+            xy=xy,
+            xytext=xytext if xytext is not None else xy,
+            color=color,
+            fontsize=fontsize,
+            arrowprops=arrowprops,
+            **kwargs,
+        )
+        return self.fig, self.ax
+
+
 class ComparePlotDate(BasePlot):
     def build(
         self,
@@ -939,6 +1001,140 @@ class CorrelationHeatmap(BasePlot):
         kwargs.setdefault("vmax", 1)
         kwargs.setdefault("center", 0)
         sns.heatmap(matrix, cmap=cmap, annot=annot, fmt=fmt, ax=self.ax, **kwargs)
+        return self.fig, self.ax
+
+
+class ProjectionPlot(BasePlot):
+    """Points in two dimensions after a projection has already been fitted.
+
+    Takes coordinates, not a model: fitting PCA, t-SNE or UMAP is sklearn's job
+    and stays outside this library. Pass the array it gave you.
+
+    The axes of a t-SNE or UMAP plot mean nothing — not distance, not direction,
+    not scale — so they are hidden by default. What survives is which points sit
+    together, and even that is a claim to check rather than a finding.
+    """
+
+    def build(
+        self,
+        coordinates: Any,
+        labels: Optional[Any] = None,
+        alpha: float = 0.7,
+        hide_axes: bool = True,
+        **kwargs,
+    ):
+        """
+        Scatter a set of two-dimensional coordinates.
+
+        Parameters:
+        -----------
+        coordinates : array-like
+            Shape (n, 2): the output of a fitted projection.
+        labels : Optional[array-like]
+            One label per point, used as colour. Length must match.
+        alpha : float
+            Point transparency; projections overplot heavily in dense regions.
+        hide_axes : bool
+            Hide the tick marks and values. The units of an embedding are not
+            interpretable, and showing them invites reading a distance off them.
+        **kwargs : Additional keyword arguments passed to `sns.scatterplot`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        points = np.asarray(coordinates)
+        if points.ndim != 2 or points.shape[1] != 2:
+            raise ValueError(
+                f"ProjectionPlot needs coordinates of shape (n, 2), got {points.shape}"
+            )
+        if labels is not None and len(labels) != len(points):
+            raise ValueError(f"Got {len(labels)} labels for {len(points)} points")
+
+        sns.scatterplot(
+            x=points[:, 0],
+            y=points[:, 1],
+            hue=labels,
+            alpha=alpha,
+            ax=self.ax,
+            **kwargs,
+        )
+
+        if hide_axes:
+            self.ax.set_xticks([])
+            self.ax.set_yticks([])
+
+        return self.fig, self.ax
+
+
+class ScreePlot(BasePlot):
+    """How much of the variance the components you kept actually carry.
+
+    The figure that has to accompany a projection. Two components that explain
+    12% of the variance make a picture of 12% of the data, and a shape in that
+    picture is not a shape in the dataset.
+    """
+
+    def build(
+        self,
+        explained_variance_ratio: Any,
+        n_components: Optional[int] = None,
+        cumulative: bool = True,
+        color: str = "steelblue",
+        line_color: str = "crimson",
+        **kwargs,
+    ):
+        """
+        Draw the variance explained per component, and the running total.
+
+        Parameters:
+        -----------
+        explained_variance_ratio : array-like
+            One fraction per component, as `explained_variance_ratio_` gives.
+        n_components : Optional[int]
+            Show only the first this many components.
+        cumulative : bool
+            Overlay the running total, which is what "how much did I keep"
+            actually asks.
+        color : str
+            Bar colour.
+        line_color : str
+            Cumulative line colour.
+        **kwargs : Additional keyword arguments passed to `ax.bar`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        ratios = np.asarray(explained_variance_ratio, dtype=float)
+        if ratios.ndim != 1 or len(ratios) == 0:
+            raise ValueError(
+                f"ScreePlot needs a one-dimensional, non-empty array of ratios, "
+                f"got shape {ratios.shape}"
+            )
+        if n_components is not None:
+            ratios = ratios[:n_components]
+
+        components = np.arange(1, len(ratios) + 1)
+        self.ax.bar(components, ratios, color=color, **kwargs)
+
+        if cumulative:
+            self.ax.plot(
+                components,
+                np.cumsum(ratios),
+                color=line_color,
+                marker="o",
+                label="cumulative",
+            )
+            self.ax.legend()
+
+        self.ax.set_xticks(components)
         return self.fig, self.ax
 
 

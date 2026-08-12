@@ -155,6 +155,7 @@ step 3.
 | `HeatmapPlot` | `sns.heatmap`, pivoting the frame if asked | when both variables have many levels |
 | `BarbellPlot` | before and after per category, joined | the change is the message |
 | `HighlightCategory` | recolours bars: grey, plus the one that matters | a layer, and it needs no help from what drew them |
+| `Annotate` | text on the plot, with an arrow to the point | a layer; the finding, written where it is read |
 | `ScatterPlot` | `sns.scatterplot` | the first plot of any relation question |
 | `RegPlot` | `sns.regplot` — `fit_reg`, `lowess`, `order` | `scatter=False` layers it over a `ScatterPlot` |
 | `CorrelationHeatmap` | `.corr()` as a heatmap, scale pinned to [-1, 1] | where to look next, not a ranking |
@@ -168,6 +169,8 @@ step 3.
 | `QQPlot` | sample quantiles vs. a distribution's theoretical quantiles | the tails, not the bulk — see [Distributions §5.5](05-distributions.md) |
 | `ECDFPlot` | one or two empirical CDFs, bin-free | the right tool for comparing two samples |
 | `NullPlot` | a shuffled statistic, with the observed value marked | `HistogramPlot` + `VerticalLine`, see [Models and residuals §6.7](06-models-and-residuals.md) |
+| `ProjectionPlot` | already-fitted 2-D coordinates | takes an array, not a model — see [Five families §4.5](04-five-families.md) |
+| `ScreePlot` | variance explained per component, plus the running total | the figure a projection has to come with |
 
 `HistogramPlot` defaults to `sqrt(n)` bins capped at 50. That default is a starting point,
 not an answer — bin count changes what a histogram appears to say, and choosing it is part of
@@ -201,6 +204,21 @@ bars.plot_on(HighlightCategory(settings))
 `highlight`, `base_color` and `highlight_color` live on `PlotSettings` so that the call stays
 about the data, but they are only defaults — pass `categories=` at the call to override.
 Naming a category that is not on the axis raises, and lists the ones that are.
+
+`Annotate` is the other layer worth reaching for by habit. A reader with thirty seconds reads
+the annotation and not the axes, so the sentence you would have said out loud belongs on the
+plot:
+
+```python
+line.plot_on(
+    Annotate(settings),
+    text="six-day gap: the logging host was down, not the channel",
+    xy=(gap_date, gap_value),          # the point being explained
+    xytext=(label_date, label_value),  # where the text sits; an arrow joins them
+)
+```
+
+Give it `xy` alone and the text lands on the point with no arrow.
 
 ## 3.7 Writing your own plot
 

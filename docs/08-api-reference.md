@@ -102,13 +102,25 @@ for the step.
 ```python
 class Pipeline:
     def add(self, transform_class: Type[T], name: Optional[str] = None, **kwargs) -> "Pipeline"
-    def apply(self, data: pd.DataFrame) -> pd.DataFrame
+    def apply(self, data: pd.DataFrame, keep_intermediate: bool = False) -> pd.DataFrame
+    def report(self) -> pd.DataFrame
     def __getitem__(self, key: str) -> Dict[str, Any]
     def __setitem__(self, key: str, params: Dict[str, Any]) -> None
+
+    intermediate: Dict[str, pd.DataFrame]    # the frame after each step, when kept
+    input_columns: List[str]                 # the columns apply was handed
 ```
 
 `add` takes the **class**, not an instance, and returns `self` so calls chain. `apply` copies
 the frame once, then instantiates and runs each step in insertion order.
+
+`keep_intermediate=True` fills `intermediate` with a **copy** of the frame after every step —
+a copy is required, since the steps mutate one frame in place and stored references would all
+show the finished columns. It does not change what `apply` returns. Both `intermediate` and
+`input_columns` are reset at the start of every `apply`, so a later plain run clears them.
+
+`report()` turns those into one row per step — `step`, `rows`, `columns`, `added`, `removed` —
+and raises if no intermediates were kept. See [Pipelines §2.7](02-pipelines.md).
 
 ---
 
@@ -325,6 +337,9 @@ class BasePlot(ABC):
 | `HeatmapPlot` | `data, index=None, columns=None, values=None, aggfunc="mean", cmap="rocket_r", annot=True, fmt=".1f", **kwargs` |
 | `BarbellPlot` | `data, category, start, end, start_label="before", end_label="after", start_color="lightgrey", end_color="crimson", line_color="lightgrey", markersize=80, **kwargs` |
 | `HighlightCategory` | `categories=None, color=None, base_color=None, axis="x"` |
+| `Annotate` | `text, xy, xytext=None, arrow=True, color="black", fontsize=11, **kwargs` |
+| `ProjectionPlot` | `coordinates, labels=None, alpha=0.7, hide_axes=True, **kwargs` |
+| `ScreePlot` | `explained_variance_ratio, n_components=None, cumulative=True, color="steelblue", line_color="crimson", **kwargs` |
 | `BarWithDates` | `data, x, y, interval: int = 1, **kwargs` |
 | `ResidualPlot` | `data, x, y, date, datelabel, interval: int = 1` |
 | `ScatterPlot` | `data, x, y, alpha=0.6, **kwargs` → `sns.scatterplot` (`hue`, `size`, `style`) |
@@ -366,6 +381,12 @@ fall back to `highlight`, `highlight_color` and `base_color` on `PlotSettings`. 
 category that is not on the axis raises and lists the ones that are; so does applying it to an
 axis with no bars. Zero-size patches are skipped — seaborn keeps its legend proxies in
 `ax.patches`, and recolouring those would rewrite the legend's swatches.
+
+`Annotate` draws an arrow only when `xytext` is given — an arrow from a point to itself is not
+a thing — so `xy` alone places the text on the point. `ProjectionPlot` takes coordinates of
+shape `(n, 2)` and raises on anything else, or on a label count that does not match; it hides
+the tick values unless told not to. `ScreePlot` takes the ratios, not a fitted model, so
+sklearn stays out of goad.
 
 `HeatmapPlot` pivots when given both `index` and `columns` (and `values`), and draws `data`
 as a matrix when given neither; one without the other raises. Its scale is sequential,
