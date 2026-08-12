@@ -30,6 +30,7 @@ class PlotSettings:
     grid: bool = False  # Added grid option
     grid_alpha: Optional[float] = None  # Grid transparency
     subplot_titles: List[str] = field(default_factory=list)  # Titles for subplots
+    max_cols: int = 3  # Columns before create_figure wraps to a new row
     highlight: List[str] = field(default_factory=list)  # Categories to pick out
     base_color: str = "lightgrey"  # Everything that is not highlighted
     highlight_color: str = "crimson"  # The categories that are
@@ -39,8 +40,9 @@ class PlotSettings:
             f"PlotSettings(figsize={self.figsize},\n title={self.title},\n "
             f"xlabel={self.xlabel},\n ylabel={self.ylabel},\n "
             f"legend_title={self.legend_title},\n grid={self.grid},\n "
-            f"grid_alpha={self.grid_alpha},\n highlight={self.highlight},\n "
-            f"base_color={self.base_color},\n highlight_color={self.highlight_color}"
+            f"grid_alpha={self.grid_alpha},\n max_cols={self.max_cols},\n "
+            f"highlight={self.highlight},\n base_color={self.base_color},\n "
+            f"highlight_color={self.highlight_color}"
         )
 
 
@@ -72,7 +74,7 @@ class BasePlot(ABC):
             axes = [self.ax]
         else:
             # Determine grid layout
-            grid_cols = min(3, n_plots)  # Max 3 columns
+            grid_cols = min(self.settings.max_cols, n_plots)
             grid_rows = int(np.ceil(n_plots / grid_cols))
             # Create subplot grid
             self.fig, axes = plt.subplots(

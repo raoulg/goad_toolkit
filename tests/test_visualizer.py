@@ -281,6 +281,30 @@ def facecolours(ax) -> list:
     return [patch.get_facecolor() for patch in ax.patches]
 
 
+def test_create_figure_wraps_at_three_columns_by_default():
+    host = LinePlot(PlotSettings())
+    fig, axes = host.create_figure(n_plots=4)
+
+    visible = [ax for ax in axes if ax.get_visible()]
+    assert len(visible) == 4
+    assert fig.axes[0].get_subplotspec().get_gridspec().get_geometry() == (2, 3)
+
+
+def test_max_cols_puts_four_panels_on_one_row():
+    host = LinePlot(PlotSettings(max_cols=4))
+    fig, axes = host.create_figure(n_plots=4)
+
+    assert fig.axes[0].get_subplotspec().get_gridspec().get_geometry() == (1, 4)
+    assert all(ax.get_visible() for ax in axes)
+
+
+def test_max_cols_of_two_gives_a_square_grid():
+    host = LinePlot(PlotSettings(max_cols=2))
+    fig, axes = host.create_figure(n_plots=4)
+
+    assert fig.axes[0].get_subplotspec().get_gridspec().get_geometry() == (2, 2)
+
+
 def test_annotate_writes_the_text_on_the_axis():
     host = LinePlot(PlotSettings())
     host.create_figure()
