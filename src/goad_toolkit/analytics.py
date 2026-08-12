@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -148,7 +148,9 @@ class DistributionFitter:
         We will prefer distributions with higher log-likelihood values.
         """
         try:
-            log_density = dist_obj.dist.logpmf if dist_obj.is_discrete else dist_obj.dist.logpdf
+            log_density = (
+                dist_obj.dist.logpmf if dist_obj.is_discrete else dist_obj.dist.logpdf
+            )
             return np.sum(log_density(data, *params))
         except Exception as e:
             logger.warning(f"Log-likelihood calculation failed: {str(e)}")
@@ -327,6 +329,155 @@ class DistributionFitter:
             raise ValueError(f"Unknown criterion '{criterion}'")
 
 
+@dataclass
+class NullResult:
+    """A statistic, and the same statistic measured under shuffled labels.
+
+    `observed` is the number you found. `null` holds the same measurement taken
+    `n_iter` times on data where the labels were shuffled — data in which, by
+    construction, the label explains nothing. If `observed` sits inside that
+    cloud, a world where nothing is happening produces your finding routinely.
+    """
+
+    observed: float
+    null: np.ndarray
+    n_iter: int
+    seed: Optional[int] = None
+
+    def p_value(self, alternative: str = "two-sided") -> float:
+        """How often a shuffle matched or beat the observed value.
+
+        Args:
+            alternative: `"greater"` counts shuffles at or above `observed`,
+                `"less"` counts shuffles at or below it, and `"two-sided"`
+                (the default) is twice the smaller of the two, capped at 1.
+
+        Both one-sided counts include the observed arrangement itself — it is
+        one of the arrangements the labels could take — so the smallest value
+        this can return is `1 / (n_iter + 1)` rather than zero. With 1000
+        shuffles, "p < 0.001" is the strongest statement available; report it
+        that way rather than as an exact number.
+        """
+        greater = (int(np.sum(self.null >= self.observed)) + 1) / (self.n_iter + 1)
+        less = (int(np.sum(self.null <= self.observed)) + 1) / (self.n_iter + 1)
+
+        if alternative == "greater":
+            return greater
+        if alternative == "less":
+            return less
+        if alternative == "two-sided":
+            return min(1.0, 2 * min(greater, less))
+        raise ValueError(
+            f"Unknown alternative '{alternative}', "
+            "expected 'two-sided', 'greater' or 'less'"
+        )
+
+    @property
+    def quantile(self) -> float:
+        """Where `observed` sits in the null, as a fraction between 0 and 1."""
+        return float(np.mean(self.null < self.observed))
+
+    def __repr__(self) -> str:
+        return (
+            f"NullResult(observed={self.observed:.4g}, "
+            f"null_mean={float(np.mean(self.null)):.4g}, "
+            f"quantile={self.quantile:.3f}, "
+            f"p={self.p_value():.4f}, n_iter={self.n_iter})"
+        )
+
+
+class NullDistribution:
+    """Shuffle the labels, measure again, and see where the real number lands.
+
+    The cheapest honest check in the method (§9.6): it assumes nothing about the
+    shape of the data, needs no table of critical values, and answers in a
+    picture rather than a test. Pair it with `NullPlot` — a student who has seen
+    their finding sitting in the middle of the null does not need a p-value
+    explained.
+
+    The statistic is yours to write. Naming what you are measuring is the
+    thinking part; running it a thousand times is the part worth delegating.
+
+    ```python
+    def gap(frame):
+        means = frame.groupby("is_bot")["length"].mean()
+        return means[True] - means[False]
+
+    result = NullDistribution(gap, n_iter=1000, seed=42).run(data, label="is_bot")
+    ```
+    """
+
+    def __init__(
+        self,
+        statistic: Callable[[pd.DataFrame], float],
+        n_iter: int = 1000,
+        seed: Optional[int] = None,
+    ) -> None:
+        """
+        Args:
+            statistic: Takes a dataframe, returns one number. Called once on the
+                data as given, then once per shuffle.
+            n_iter: Number of shuffles. 1000 is enough to see the shape; go to
+                10_000 when the observed value sits far out in the tail.
+            seed: Passed to `numpy.random.default_rng`. Set it, or the picture
+                changes every time the cell is run.
+        """
+        if n_iter < 1:
+            raise ValueError(f"n_iter must be at least 1, got {n_iter}")
+        self.statistic = statistic
+        self.n_iter = n_iter
+        self.seed = seed
+
+    def run(self, data: pd.DataFrame, label: str) -> NullResult:
+        """Measure `statistic` on `data`, then on `n_iter` shuffles of `label`.
+
+        Shuffling one column breaks the link between it and every other column
+        while leaving both distributions exactly as they were: the labels keep
+        their proportions, the values keep their shape, and only the pairing is
+        destroyed. That is the "nothing is happening" world to compare against.
+
+        Args:
+            data: The frame to measure. It is never modified.
+            label: Column to shuffle — the one whose association with the rest
+                of the frame is in question.
+
+        Returns:
+            A `NullResult` holding the observed value and the shuffled cloud.
+        """
+        if label not in data.columns:
+            raise ValueError(
+                f"Column '{label}' is not in the data; got {list(data.columns)}"
+            )
+
+        observed = float(self.statistic(data))
+        if not np.isfinite(observed):
+            raise ValueError(
+                f"The statistic returned {observed} on the unshuffled data; "
+                "there is nothing to compare a null against."
+            )
+
+        rng = np.random.default_rng(self.seed)
+        values = data[label].to_numpy()
+        shuffled = data.copy()
+
+        null = np.empty(self.n_iter)
+        for i in range(self.n_iter):
+            # A plain array, not a Series: assigning a permuted Series realigns
+            # on the index and puts every label straight back where it started.
+            shuffled[label] = rng.permutation(values)
+            null[i] = float(self.statistic(shuffled))
+
+        if not np.all(np.isfinite(null)):
+            logger.warning(
+                f"{int(np.sum(~np.isfinite(null)))} of {self.n_iter} shuffles gave a "
+                "non-finite statistic; a small group may be emptying under shuffling."
+            )
+
+        return NullResult(
+            observed=observed, null=null, n_iter=self.n_iter, seed=self.seed
+        )
+
+
 def fit_table(results: List[Result]) -> pd.DataFrame:
     """Turn a list of fit results into a ranked dataframe: what a student hands in.
 
@@ -343,8 +494,12 @@ def fit_table(results: List[Result]) -> pd.DataFrame:
                     "distribution": result.distribution,
                     "params": result.params,
                     "log_likelihood": result.log_likelihood,
-                    "ks_stat": result.kstest.statistic if result.kstest else float("nan"),
-                    "ks_pvalue": result.kstest.p_value if result.kstest else float("nan"),
+                    "ks_stat": result.kstest.statistic
+                    if result.kstest
+                    else float("nan"),
+                    "ks_pvalue": result.kstest.p_value
+                    if result.kstest
+                    else float("nan"),
                     "best_likelihood": bool(result.best_likelihood),
                     "best_ks": bool(result.best_ks),
                     "message": result.message,

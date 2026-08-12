@@ -141,7 +141,9 @@ See [Visual critique](07-visual-critique.md).
 | Does it survive changing the parameter from stage 4? | If it does not, the finding is about the parameter | the sweep you ran |
 | If you modelled it, what does the residual look like? | Structure in the residual is an unmodelled mechanism, not noise | the residual's shape over time and its distribution |
 
-See [Models and residuals](06-models-and-residuals.md) §6.3.
+See [Models and residuals](06-models-and-residuals.md) §6.3 for the residual loop, and §6.7
+for the shuffle test — `NullDistribution` runs the resampling once you have said what to
+shuffle.
 
 ### The garden of forking paths
 

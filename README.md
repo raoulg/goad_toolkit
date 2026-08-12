@@ -183,6 +183,36 @@ For the [kstest](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stat
 The plots are sorted by log-likelihood, which means there is no good fit with a distribution in this case.
 ![residuals](img/distribution_fit.png)
 
+### 🎲 Is it real? The shuffle test
+
+Shuffle the labels, measure again, and see where the real number lands. No test, no
+assumptions, no table of critical values — just a picture of what your measurement does when
+the label means nothing:
+
+```python
+from goad_toolkit.analytics import NullDistribution
+from goad_toolkit.visualizer import NullPlot, PlotSettings
+
+def gap(frame):
+    means = frame.groupby("is_bot")["length"].mean()
+    return means[True] - means[False]
+
+result = NullDistribution(gap, n_iter=2000, seed=1).run(data, label="is_bot")
+settings = PlotSettings(
+    title="Mean message length: bots minus humans",
+    xlabel="difference in mean length (characters)",
+    ylabel="density under shuffled labels",
+)
+NullPlot(settings).plot(result=result)
+```
+
+![null distribution](img/null-distribution.png)
+
+The grey cloud is the statistic under shuffled labels; the line is what the real data did.
+Writing the statistic is your job — that is the claim. See
+[Models and residuals](docs/06-models-and-residuals.md) §6.7 for what the p-value can and
+cannot carry.
+
 ### 🧩 Extending with Custom Distributions
 
 You can easily register new distributions:

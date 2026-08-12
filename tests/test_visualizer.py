@@ -8,6 +8,7 @@ import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 from scipy import stats  # noqa: E402
 
+from goad_toolkit.analytics import NullResult  # noqa: E402
 from goad_toolkit.visualizer import (  # noqa: E402
     ACFPlot,
     BarWithDates,
@@ -16,10 +17,12 @@ from goad_toolkit.visualizer import (  # noqa: E402
     DecomposePlot,
     ECDFPlot,
     LinePlot,
+    NullPlot,
     PlotSettings,
     QQPlot,
     ResidualPlot,
     VerticalDate,
+    VerticalLine,
 )
 
 
@@ -157,7 +160,9 @@ def test_qq_plot_points_fall_near_the_reference_line_for_a_correct_fit():
     rng = np.random.default_rng(11)
     data = rng.normal(loc=5.0, scale=2.0, size=500)
 
-    fig, ax = QQPlot(PlotSettings()).plot(data=data, distribution=stats.norm(loc=5.0, scale=2.0))
+    fig, ax = QQPlot(PlotSettings()).plot(
+        data=data, distribution=stats.norm(loc=5.0, scale=2.0)
+    )
 
     assert fig is not None
     offsets = ax.collections[0].get_offsets()
@@ -188,7 +193,9 @@ def test_ecdf_plot_compares_two_samples():
     lower = np.array([1, 2, 3, 4, 5])
     higher = lower + 10
 
-    fig, ax = ECDFPlot(PlotSettings()).plot(data=lower, compare=higher, label="a", compare_label="b")
+    fig, ax = ECDFPlot(PlotSettings()).plot(
+        data=lower, compare=higher, label="a", compare_label="b"
+    )
 
     assert len(ax.lines) == 2
     legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
@@ -198,3 +205,57 @@ def test_ecdf_plot_compares_two_samples():
 def test_ecdf_plot_rejects_empty_data():
     with pytest.raises(ValueError, match="no data"):
         ECDFPlot(PlotSettings()).plot(data=np.array([]))
+
+
+def test_vertical_line_draws_at_the_requested_x():
+    fig, ax = VerticalLine(PlotSettings()).plot(x=2.5, label="observed")
+
+    assert fig is not None
+    assert ax.lines[0].get_xdata()[0] == pytest.approx(2.5)
+    legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert legend_labels == ["observed"]
+
+
+def test_vertical_line_without_a_label_has_no_legend():
+    fig, ax = VerticalLine(PlotSettings()).plot(x=1.0)
+
+    assert ax.get_legend() is None
+
+
+@pytest.fixture
+def null_result() -> NullResult:
+    rng = np.random.default_rng(4)
+    return NullResult(observed=3.0, null=rng.normal(size=200), n_iter=200, seed=4)
+
+
+def test_null_plot_draws_the_null_and_marks_the_observed_value(null_result):
+    fig, ax = NullPlot(PlotSettings()).plot(result=null_result)
+
+    assert fig is not None
+    assert len(ax.patches) > 0  # the null histogram
+    assert ax.lines[-1].get_xdata()[0] == pytest.approx(3.0)
+
+
+def test_null_plot_writes_the_finding_into_the_legend(null_result):
+    fig, ax = NullPlot(PlotSettings()).plot(result=null_result)
+
+    label = ax.get_legend().get_texts()[0].get_text()
+    assert "observed = 3" in label
+    assert "p" in label
+
+
+def test_null_plot_reports_a_bounded_p_value_at_the_floor():
+    null = np.zeros(100)
+    result = NullResult(observed=10.0, null=null, n_iter=100, seed=None)
+
+    fig, ax = NullPlot(PlotSettings()).plot(result=result)
+
+    label = ax.get_legend().get_texts()[0].get_text()
+    assert "≤" in label
+
+
+def test_null_plot_accepts_a_custom_label(null_result):
+    fig, ax = NullPlot(PlotSettings()).plot(result=null_result, label="my finding")
+
+    legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert legend_labels == ["my finding"]
