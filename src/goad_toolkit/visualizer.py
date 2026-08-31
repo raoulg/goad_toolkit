@@ -24,8 +24,8 @@ class PlotSettings:
 
     figsize: Tuple[int, int] = (10, 6)
     title: str = "Plot"
-    xlabel: str = "X"
-    ylabel: str = "Y"
+    xlabel: Optional[str] = None
+    ylabel: Optional[str] = None
     legend_title: Optional[str] = None
     grid: bool = False  # Added grid option
     grid_alpha: Optional[float] = None  # Grid transparency
@@ -90,8 +90,13 @@ class BasePlot(ABC):
         # Apply common settings to all axes
         for i, ax in enumerate(axes):
             if ax.get_visible():
-                ax.set_xlabel(self.settings.xlabel)
-                ax.set_ylabel(self.settings.ylabel)
+                # None means "let the plotting call decide" -- seaborn fills the axis
+                # label in from the column name whenever the label is still empty, so
+                # only an explicit xlabel/ylabel should pre-empt that.
+                if self.settings.xlabel is not None:
+                    ax.set_xlabel(self.settings.xlabel)
+                if self.settings.ylabel is not None:
+                    ax.set_ylabel(self.settings.ylabel)
                 # Apply grid if requested
                 if self.settings.grid:
                     ax.grid(True, alpha=self.settings.grid_alpha)

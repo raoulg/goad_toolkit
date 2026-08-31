@@ -45,13 +45,20 @@ be reused with entirely different makeup.
 class PlotSettings:
     figsize: Tuple[int, int] = (10, 6)
     title: str = "Plot"
-    xlabel: str = "X"
-    ylabel: str = "Y"
+    xlabel: Optional[str] = None
+    ylabel: Optional[str] = None
     legend_title: Optional[str] = None
     grid: bool = False
     grid_alpha: Optional[float] = None
     subplot_titles: List[str] = field(default_factory=list)
 ```
+
+`xlabel`/`ylabel` left as `None` are not blank — `create_figure` skips setting them at all,
+which leaves whatever the plotting call itself writes in (seaborn labels an axis from the
+column name whenever the label is still empty). Only an explicit `xlabel=`/`ylabel=` in
+`PlotSettings` pre-empts that. So `PlotSettings(title="Body mass by species")` gets you
+correct axis labels for free from the column names you passed to `x=`/`y=`; reach for
+`xlabel=`/`ylabel=` only when the column name is not what you want a reader to see.
 
 It is a dataclass, so `dataclasses.replace(settings, title="Something else")` gives you a
 variant without mutating the original. Useful when a figure set shares everything but the
