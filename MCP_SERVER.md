@@ -48,14 +48,19 @@ point; ask it to go back to stage one and actually wait for your answers.
 document dump. It walks a student through six stages **in order**, one at a time, and only
 advances once the assistant reports back what the student actually said:
 
-1. **question** — what do you want to know, what would count as an answer in both directions,
-   and who is it for?
-2. **data** — what is one row, what was measured versus derived, and what does the question
-   need that the data does not yet contain?
-3. **shape** — how is each variable distributed, is anything long-tailed, and are the extreme
-   values errors or ordinary members of a tail?
-4. **encoding** — which of the five families does the question live in, and which visual
-   channel carries the comparison you actually care about?
+1. **question** — an interview, not a single ask: what is this data, what do you already
+   know happened in it, what would a stranger reading the rows never guess, what's curious —
+   only then pinned into a proposition, what would count as an answer in both directions, and
+   who it's for
+2. **data** — every theme named in stage 1 talked through together — "does a feature come to
+   mind, or should we brainstorm one?" — before what is one row, what was measured versus
+   derived, and what else the proposition needs that the data does not yet contain
+3. **shape** — gated, in plain language: is there anywhere in the claim where common versus
+   rare, or typical versus extreme, would actually change what you'd say — before any
+   histogram gets made, and before "discrete or continuous" gets asked as a fact rather than
+   the choice it actually is
+4. **encoding** — the obvious family sketched against an unexpected one, before committing to
+   either — which visual channel carries the comparison you actually care about?
 5. **critique** — what does the plot say in the first 200ms, what does the eye group by
    itself, and what exactly are you claiming?
 6. **verification** — what null would produce this too, what confounder could, and what does
@@ -63,9 +68,23 @@ advances once the assistant reports back what the student actually said:
 
 Each stage returns a markdown table — question / why it matters / what a good answer names —
 plus an instruction to the assistant: ask the student, wait for a real answer, don't answer on
-their behalf, and don't fetch the next stage until this one is actually recorded. Progress is
-held in memory for the current session only. At the end it returns a recap of everything
-recorded, which is a usable first draft of the write-up.
+their behalf unless it's a technical detail worth brainstorming together (stage 2's feature
+mapping is explicitly that kind of stage), and don't fetch the next stage until this one is
+actually recorded. Stages 2–4 are wired to what got recorded earlier — the data stage quotes
+stage 1's proposition back, the shape stage quotes the features named in stage 2, and the
+encoding stage quotes stage 1's claim again — so later checklists read against the student's
+own answers instead of the method in the abstract.
+
+Progress is held in memory for the current session only, so once stage 1 is recorded the
+assistant is prompted to give the plan an actual home rather than leaving it in the chat: if
+the student has a planning or tracking tool connected — **Linear is a good default if you
+have it** — use that; otherwise fall back to a plain markdown file in the project (e.g.
+`analysis-log.md`) that the assistant maintains with its own file tools, since this MCP
+server holds no state of its own. Either way, the assistant is told to append to it after
+every later stage, not only write it once — that running document, built up entry by entry
+from the actual answers, is the real first draft of the write-up, more than the final recap
+is. At the end the tool still returns a recap of everything recorded, framed as the closing
+section of that document rather than a new one.
 
 `goad_critique_visual` splits the work explicitly: sections 2 and 3 (gestalt principles, the
 five guidelines) are ones an assistant can genuinely help with, and it is told to be concrete

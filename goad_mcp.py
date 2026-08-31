@@ -451,23 +451,46 @@ def _method() -> str:
 
 STAGE_INTRO: dict[AnalysisStage, str] = {
     AnalysisStage.question: (
-        "Nothing downstream can be decided until this is settled. An analysis that starts "
-        "from the columns produces a tour of the columns; an analysis that starts from a "
-        f"question produces an answer somebody can disagree with ({_goad()} §1.2)."
+        "Nothing downstream can be decided until this is settled, and it will not arrive by "
+        "asking abstractly what someone 'wants to know' — most students answer that with "
+        f"'I don't know'. It arrives by getting them to talk ({_goad()} §1.2, §1.6). Ask "
+        "about the data itself first — what it is, what they already know happened in it, "
+        "what an outsider would never guess — and let the interesting thread surface on its "
+        "own before pinning it into a proposition. This is also the one stage no LLM can do "
+        "for the student: it was not there, and 'I intuit something is off in week three' is "
+        "not a sentence it can produce from the rows alone. A story has an arc — a "
+        "build-up, a turn, a punchline — and the aim here is a question whose answer could "
+        "be a punchline, not a tour of the columns that ends in 'people sleep at night'."
     ),
     AnalysisStage.data: (
         "Now — and only now — look at what you have. The gap between what the data contains "
         "and what the question needs is the enrichment step, and it is usually where the "
-        f"analysis is won rather than in any later method ({_pipelines()})."
+        f"analysis is won rather than in any later method ({_pipelines()}). Unlike stage 1, "
+        "this is a place you can genuinely help: turning a feeling into a feature is a "
+        "technical step, and thinking it through together — proposing candidates, not just "
+        "asking a bare question and waiting — is exactly the kind of thing an assistant is "
+        "good at. The student still decides what stays; you are a sounding board, not the "
+        "author."
     ),
     AnalysisStage.shape: (
-        "Before comparing, correlating or modelling anything, find out how each variable is "
-        "distributed. A correlation between two long-tailed variables is often a correlation "
-        f"between their two largest observations ({_dists()})."
+        "This stage exists to serve a decision, not to produce a gallery of histograms. "
+        "Fitting a distribution to every column because the data has that many columns is "
+        f"the describe()-and-heatmap tour from {_goad()} §1.1 wearing a fancier outfit. "
+        "Before looking at any shape, name what it is FOR — and where nothing downstream "
+        "would change either way, skip it and say so. And keep it in plain language: most "
+        "students here have not met anything past a normal distribution, and 'shape', "
+        "'discrete', 'continuous' are jargon that loses them before the question lands — "
+        "ask about common versus rare, typical versus extreme, bucket versus number line, "
+        "and let the technical vocabulary arrive after the idea has, if at all. Where a "
+        "shape check does matter: a correlation between two long-tailed variables is often "
+        f"a correlation between their two largest observations ({_dists()})."
     ),
     AnalysisStage.encoding: (
-        "The family follows from the question, not from the chart you already pictured. "
-        f"Choosing a chart type first is choosing an answer first ({_families()})."
+        "The family follows from the question, not from the chart you already pictured — "
+        "but the question rarely pins down only one family. Most patterns can be approached "
+        "from more than one angle, and the obvious angle is a good default, not the only "
+        "candidate: sketch it and at least one alternative, including one that feels like a "
+        f"stretch, before committing ({_families()})."
     ),
     AnalysisStage.critique: (
         "Judge the picture the way a reader will: what it says in the first 200ms, what the "
@@ -485,20 +508,57 @@ StageRow = tuple[str, str, str]
 STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
     AnalysisStage.question: [
         (
-            "What do you want to know, in one sentence?",
+            "What is this data, and who or what is it a record of — in your own words, not "
+            "the column names?",
+            "Grounds the conversation in what the student already knows before a column name "
+            "gets to suggest a question for them.",
+            "the group, subject, or process, and roughly what period or scope it covers",
+        ),
+        (
+            "What do you already know happened in here, before looking at a single number — "
+            "an argument, someone joining or leaving, a running joke, a slow month?",
+            "Whoever was there carries context no column will ever contain. That context is "
+            "exactly what a plot cannot supply on its own and an LLM reading only the rows "
+            "cannot supply either — it was not there.",
+            "specific remembered events or periods, roughly dated",
+        ),
+        (
+            "What are the dynamics, running jokes, or character traits in here that a "
+            "stranger reading the raw rows would never guess?",
+            "This is where a real theme usually comes from — the ebb and flow of attention, "
+            "who drives a conversation versus who lurks, which topics are the group's own and "
+            "would mean nothing to an outsider.",
+            "a named theme or dynamic, and who or what it is about",
+        ),
+        (
+            "What's curious to you, and what do you suspect is really going on — something "
+            "you feel or intuit but could not show just by scrolling through a few messages?",
+            "This is the actual target of the whole stage. 'I don't know' is the default "
+            "answer to 'what do you want to know'; it is rarely the answer to 'what have you "
+            "half-noticed'. Say it even if it is fuzzy — the next rows sharpen it, they do "
+            "not require it arrive sharp.",
+            "the suspicion, in the student's own words, unpolished",
+        ),
+        (
+            "Name a result about this data that would be true and completely uninteresting "
+            "even if you found it. Is the question forming so far that one in disguise?",
+            "'A timeseries of message count shows people sleep at night' is true, checkable, "
+            "and nobody's punchline. Every dataset has a handful of these open doors, and the "
+            "fastest way past them is to name one on purpose before accidentally aiming at it.",
+            "the boring result, and how the real question differs from it",
+        ),
+        (
+            "Turn the most interesting thread above into one sentence a result could "
+            "contradict — and what result would make you say 'no'?",
             "Every later decision — which transform, which plot, which test — is downstream "
-            "of this, and it is the stage students skip.",
-            "a proposition, not a topic ('are messages concentrated in two daily peaks', "
-            "not 'message timing')",
+            "of this. A suspicion is not yet a question; a question is a proposition with a "
+            "way to lose.",
+            "a proposition, not a topic ('are messages concentrated in two daily peaks', not "
+            "'message timing'), plus the specific pattern whose absence would settle it",
         ),
         (
-            "What result would make you say 'no'?",
-            "A question no result can contradict cannot be answered, only decorated.",
-            "the specific pattern whose absence would settle it",
-        ),
-        (
-            "Did this question come from an idea about the world, or from a pattern you "
-            "already spotted in the data?",
+            "Did this come from something you already knew about the group, or from a "
+            "pattern you noticed while skimming the data itself?",
             "Both are legitimate — exploration is how most real questions are found, and a "
             "course that only allowed pre-registered questions would forbid data analysis. "
             "What is not legitimate is confirming a data-suggested pattern on the same data "
@@ -509,30 +569,38 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
             "or second measure it will be checked against",
         ),
         (
-            "If the answer turns out to be yes, what mechanism would explain it — and would "
-            "you have predicted it beforehand?",
-            "Evidence does not speak on its own. The same test result means something very "
-            "different for 'fewer messages get sent at 4am' (a mechanism everyone can name) "
-            "than for 'people on the 4th floor are grumpier' (none). Where no mechanism "
-            "exists, a striking result is more likely a confounder or a fluke than a "
-            "discovery — and knowing that BEFORE the test is what stops it becoming a story.",
-            "the mechanism, or an explicit 'none — so a positive result sends me looking for "
-            "a confounder rather than to the conclusion'",
+            "If this turns out to be true, what is the arc — the build-up, the turn, the "
+            "punchline — and would you have called the punchline before running the numbers?",
+            "Evidence does not speak on its own. The same result means something very "
+            "different for 'fewer messages get sent at 4am' (an arc everyone can narrate) "
+            "than for 'people on the 4th floor are grumpier' (none). Where no arc exists, a "
+            "striking result is more likely a confounder or a fluke than a discovery — and "
+            "knowing that BEFORE the test is what stops it becoming a story anyway.",
+            "the arc, or an explicit 'none — so a positive result sends me looking for a "
+            "confounder rather than to the conclusion'",
         ),
         (
-            "Who reads the answer, and how long do they have?",
+            "Who reads this, how long do they have, and would the answer actually surprise "
+            "them?",
             "Decides how much has to be visible in the picture versus how much can stay in "
-            "your head.",
-            "an audience and a rough time budget",
-        ),
-        (
-            "Does anyone care what the answer turns out to be?",
-            "If both outcomes are equally uninteresting, better to find that out now than "
-            "after a week of work.",
-            "a consequence that differs depending on the outcome",
+            "your head — and if nobody would be surprised either way, better to find that out "
+            "now than after a week of work.",
+            "an audience, a rough time budget, and a consequence that differs by outcome",
         ),
     ],
     AnalysisStage.data: [
+        (
+            "Go through each theme, event, and suspicion from stage 1 together, one at a "
+            "time: 'here's what you told me — does a specific column or feature come to "
+            "mind, or should we brainstorm one?' Offer candidates where you have them.",
+            "Turning a feeling into a feature is the technical half of this handoff, and it "
+            "is exactly where an assistant is useful — unlike the suspicion itself, a "
+            "candidate feature is something you can propose and the student can accept, "
+            "adjust, or veto. The point is to think it through together, not to hand back a "
+            "completed list they never got to react to.",
+            "one feature per named theme, agreed between you — or an explicit 'no feature "
+            "for this one, so it stays out'",
+        ),
         (
             "What is one row?",
             "If you cannot say it in a sentence, later aggregations will be wrong in ways "
@@ -556,9 +624,12 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
             "the provenance of each column the question depends on",
         ),
         (
-            "What does your question need that the data does not yet contain?",
-            "This is the enrichment step. A hand-written regex or timestamp feature "
-            "regularly beats a more sophisticated method on the same raw columns.",
+            "Beyond those named themes, what does the proposition from stage 1 need that "
+            "the data still does not contain?",
+            "The formal proposition usually needs a few mechanical features the interview "
+            "would not surface on its own — an hour-of-day column, a rolling window, a join. "
+            "A hand-written regex or timestamp feature regularly beats a more sophisticated "
+            "method on the same raw columns.",
             "the specific derived features, and how each would be computed",
         ),
         (
@@ -576,15 +647,46 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
     ],
     AnalysisStage.shape: [
         (
-            "For each variable in play: discrete or continuous?",
-            "Selects which half of the distribution registry can even apply, and the fitter "
-            "will not tell you if you get it wrong.",
-            "which, per variable",
+            "Setting statistics aside for a second: is there anywhere in your claim where "
+            "knowing a value is common versus rare, or typical versus extreme, would "
+            "actually change what you'd say? If yes, where — if not, this whole stage can "
+            "be skipped.",
+            "This is the plain-language version of the gate — most students here have not "
+            "met anything past a normal distribution, and leading with 'shape' loses them "
+            "before the question lands. Either way, a check that would not change the "
+            "answer is not worth running: fitting a distribution to every column because "
+            f"the data has that many is the describe()-and-heatmap tour ({_goad()} §1.1) in "
+            "a fancier outfit.",
+            "the specific feature and where it bites — or an honest 'nothing here would "
+            "change, skip it'",
         ),
         (
-            "What does each histogram look like — symmetric, skewed, bounded, multimodal?",
-            "A mean and a standard deviation summarise exactly one of those honestly.",
-            "the shape, in words, per variable",
+            "For that one: if it turned out to be common/typical almost everywhere versus "
+            "rare/wildly uneven, what would you actually do differently — report a "
+            "different number, draw a different plot, or decide the groups aren't even "
+            "comparable?",
+            "Naming the decision in plain terms is what turns 'let's look at the "
+            "histogram' from curiosity into a step with a point.",
+            "the concrete decision, as an if/then, in the student's own words",
+        ),
+        (
+            "For that feature: do you want to treat it as a small number of buckets "
+            "(categories) or as a number line — and which choice actually serves what "
+            "you're trying to show?",
+            "Almost anything can be sliced into buckets or left as a continuum — age can be "
+            "an integer or 'young/old', message length a number or 'short/medium/long'. "
+            "This is a decision made for the claim, not a fact handed down by the column, "
+            "and the two choices support different plots.",
+            "which was chosen, and why — not just 'it's numeric so it's continuous'",
+        ),
+        (
+            "For that feature: look at the actual histogram. What does it look like in "
+            "your own words — is it lopsided, does it have one hump or several, does it "
+            "trail off to one side?",
+            "The technical labels (symmetric, skewed, bounded, multimodal) are names for "
+            "what you can already see; naming it in your own words first confirms you saw "
+            "it and did not just fetch a term.",
+            "the shape in the student's own words, per named feature",
         ),
         (
             "Is anything long-tailed?",
@@ -614,10 +716,24 @@ STAGE_ROWS: dict[AnalysisStage, list[StageRow]] = {
     ],
     AnalysisStage.encoding: [
         (
-            f"Which of the five families does this question live in? ({_families()})",
-            "categories / time / distributions / relations / high-dimensional. The family "
-            "follows from the question.",
-            "one family, and why the question belongs to it",
+            f"Which of the five families is the obvious fit for this question — and which "
+            f"other family could frame the SAME question, including one that feels like a "
+            f"stretch? ({_families()})",
+            "categories / time / distributions / relations / high-dimensional. One "
+            "phenomenon usually fits more than one family — a relation can be reframed as a "
+            "distribution of differences, a time series as a ranked comparison. The obvious "
+            "framing is a good default, not a foregone conclusion, and the stretch is "
+            "sometimes where the actual finding is.",
+            "the obvious family and at least one real alternative, each with a reason it "
+            "could show something the other hides",
+        ),
+        (
+            "Sketch what each candidate would look like for this data — five minutes of "
+            "code or even pen and paper. Which one actually shows the arc from stage 1 most "
+            "clearly?",
+            "Cheap to sketch, expensive to build. Deciding after seeing a rough version "
+            "beats deciding from a mental picture of a chart nobody has made yet.",
+            "which sketch won, and what it showed that the runner-up did not",
         ),
         (
             "Which single comparison is the point of the plot?",
@@ -758,12 +874,48 @@ def _roadmap() -> str:
     return "\n".join(lines)
 
 
+# Which earlier stage's recorded answer a later stage's checklist should be read against,
+# and the framing that turns the quote into an instruction rather than a reminder.
+_WIRED_FROM: dict[AnalysisStage, tuple[AnalysisStage, str]] = {
+    AnalysisStage.data: (
+        AnalysisStage.question,
+        "**What you told me you're chasing:** {answer}\n\nEverything below should be read "
+        "against that, not against the columns in general — a feature only belongs here if "
+        "it is what that claim needs.",
+    ),
+    AnalysisStage.shape: (
+        AnalysisStage.data,
+        "**The features you named:** {answer}\n\nThe gate below asks which of these — if "
+        "any — this stage is actually for.",
+    ),
+    AnalysisStage.encoding: (
+        AnalysisStage.question,
+        "**The claim from stage 1:** {answer}\n\nSketch more than one family against it — "
+        "the obvious framing is a good default, not a foregone conclusion.",
+    ),
+}
+
+
+def _stage_intro(stage: AnalysisStage) -> str:
+    """The stage's fixed rationale, plus — where a later stage depends on an earlier one's
+    actual answer — a quote of what was recorded, so the checklist reads against the
+    student's own claim instead of restating the method in the abstract."""
+    parts = [STAGE_INTRO[stage]]
+    wired = _WIRED_FROM.get(stage)
+    if wired is not None:
+        source_stage, framing = wired
+        answer = _progress.get(source_stage.value)
+        if answer:
+            parts.append(framing.format(answer=answer))
+    return "\n\n".join(parts)
+
+
 def _stage_table(stage: AnalysisStage) -> str:
     rows = STAGE_ROWS[stage]
     lines = [
         f"# Stage: {STAGE_TITLE[stage]}",
         "",
-        STAGE_INTRO[stage],
+        _stage_intro(stage),
         "",
         "| Question | Why it matters | A good answer names |",
         "|---|---|---|",
@@ -782,12 +934,39 @@ def _stage_table(stage: AnalysisStage) -> str:
     return "\n".join(lines)
 
 
+def _plan_prompt() -> str:
+    return (
+        "**Before opening stage 2, give this plan a home.** The progress this tool tracks "
+        "is in memory for this server process only — it does not survive a restart, and it "
+        "was never meant to be the actual record. Assume the plan should live somewhere "
+        "that does:\n\n"
+        "- If the student already has a planning or tracking tool you can reach (Linear, "
+        "Jira, Notion, a todo app — anything with an MCP or API connected), offer to open "
+        "an item there and use it as the running plan.\n"
+        "- If not, default to a plain markdown file in the project (e.g. `analysis-log.md`) "
+        "that you maintain with your own file tools — this MCP server has none of its own, "
+        "so that file is the one thing that will still be there tomorrow.\n\n"
+        "Write the first entry now: what stage 1 established, which named theme maps to "
+        "which feature, which shape checks (if any) look like they'll matter and why, which "
+        "family or families seem promising. Ask the student rather than assuming which home "
+        "they want — but assume a home is worth having. Append to it after every later "
+        "stage too, not only at the end: that running document, not this chat, is the real "
+        "first draft of the write-up.\n\n"
+    )
+
+
+_LOG_REMINDER = (
+    "**Append this to the running log or tracker** before opening the next stage — that "
+    "document is the actual record, not this chat.\n\n"
+)
+
+
 def _completion_summary() -> str:
     lines = [
         "# All six stages recorded",
         "",
-        "What was reasoned through, in order — this is a usable first draft of the "
-        "student's write-up:",
+        "What was reasoned through, in order — append this as the closing section of the "
+        "running log or tracker from stage 1, not as a separate document:",
         "",
     ]
     for stage in STAGE_ORDER:
@@ -851,10 +1030,14 @@ async def goad_analysis_checklist(params: AnalysisChecklistInput) -> str:
     session) and is not persisted across restarts.
 
     The six stages, in the order they must happen:
-        1. question     — what do you want to know, and what would count as an answer?
-        2. data         — what is one row, and what does the question need that is missing?
-        3. shape        — how is each variable distributed, before you compare anything?
-        4. encoding     — which of the five families, and which visual channel carries it?
+        1. question     — an interview, not an interrogation: what is this data, what do you
+                          already know happened in it, what's curious — before pinning that
+                          down into a proposition and what would count as an answer
+        2. data         — map stage 1's themes onto features, then fill what's still missing
+        3. shape        — only for a feature the claim depends on, and only if it changes a
+                          decision — not a histogram of every column because you can
+        4. encoding     — sketch the obvious family AND an unexpected one against stage 1's
+                          claim before committing to either
         5. critique     — does the picture make the argument a reader will read?
         6. verification — how would you know the pattern is real?
 
@@ -882,6 +1065,7 @@ async def goad_analysis_checklist(params: AnalysisChecklistInput) -> str:
         return _completion_summary()
 
     recap = f"✅ Recorded for **{STAGE_TITLE[stage]}**: {params.answers.strip()}\n\n"
+    recap += _plan_prompt() if stage is AnalysisStage.question else _LOG_REMINDER
     return recap + _stage_table(nxt)
 
 
