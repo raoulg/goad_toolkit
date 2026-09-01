@@ -208,6 +208,178 @@ class RegexFeature(TransformBase):
         return data
 
 
+class Filter(TransformBase):
+    """Keep the rows a query expression selects.
+
+    The expression is pandas' `DataFrame.query` syntax: column names bare,
+    `and`/`or`/`not` spelled out — e.g.
+    `"day_name == 'Thursday' and not is_release"`. A data decision written
+    as one readable line, which is what a pipeline step should be.
+    """
+
+    def transform(self, data: pd.DataFrame, expr: str) -> pd.DataFrame:
+        return data.query(expr)
+
+
+class SortValues(TransformBase):
+    """Sort rows by a column. Order is a data decision, so it lives here."""
+
+    def transform(
+        self, data: pd.DataFrame, column: str, ascending: bool = True
+    ) -> pd.DataFrame:
+        return data.sort_values(column, ascending=ascending).reset_index(drop=True)
+
+
+class Head(TransformBase):
+    """Keep the first `n` rows. After a sort, that is a top-n."""
+
+    def transform(self, data: pd.DataFrame, n: int) -> pd.DataFrame:
+        return data.head(n)
+
+
+class CountValues(TransformBase):
+    """One row per distinct value of a column, with how often it occurs.
+
+    Sorted most-frequent first, the way `value_counts` sorts.
+    `normalize=True` turns the counts into shares of the total.
+    """
+
+    def transform(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        feature: str = "n",
+        normalize: bool = False,
+    ) -> pd.DataFrame:
+        counts = data[column].value_counts(normalize=normalize)
+        return counts.rename(feature).rename_axis(column).reset_index()
+
+
+class GroupAgg(TransformBase):
+    """Aggregate a column per group: one row per group, one value each.
+
+    `agg="size"` counts rows and needs no `column`; the count lands in
+    `feature` (default `"n"`). Any other `agg` is a pandas aggregation name
+    (`"sum"`, `"mean"`, `"nunique"`, ...) applied to `column`, landing in
+    `feature` (default: the column's own name). The output column is
+    `feature`, not `name` — `name` already names the pipeline step.
+    """
+
+    def transform(
+        self,
+        data: pd.DataFrame,
+        by,
+        column: Optional[str] = None,
+        agg: str = "size",
+        feature: Optional[str] = None,
+    ) -> pd.DataFrame:
+        if agg == "size":
+            result = data.groupby(by).size()
+            feature = feature or "n"
+        else:
+            if column is None:
+                raise ValueError(f"agg={agg!r} needs a column to aggregate")
+            result = data.groupby(by)[column].agg(agg)
+            feature = feature or column
+        return result.rename(feature).reset_index()
+
+
+class Share(TransformBase):
+    """Divide a column by its total, so the values become shares summing to one.
+
+    With `by`, totals are per group instead: each row becomes its share of
+    its own group's total, and every group sums to one separately — the move
+    that makes a small group and a large one comparable by shape.
+    `feature` writes the shares to a new column; by default the column is
+    replaced in place.
+    """
+
+    def transform(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        feature: Optional[str] = None,
+        by=None,
+    ) -> pd.DataFrame:
+        if by is None:
+            total = data[column].sum()
+        else:
+            total = data.groupby(by)[column].transform("sum")
+        data[feature or column] = data[column] / total
+        return data
+
+
+class FlagDates(TransformBase):
+    """Mark the rows that fall on the given calendar days, as a boolean column.
+
+    The workhorse of event studies: flag release days, holidays, birthdays,
+    then filter or group on the flag. Matching is by calendar day — the
+    column's values are normalized to midnight, and timezone information is
+    dropped, before comparing — so a timestamp column works as-is. `dates`
+    is anything `pd.to_datetime` accepts.
+    """
+
+    def transform(
+        self, data: pd.DataFrame, column: str, dates, feature: str
+    ) -> pd.DataFrame:
+        values = pd.to_datetime(data[column])
+        if values.dt.tz is not None:
+            values = values.dt.tz_localize(None)
+        wanted = pd.to_datetime(list(dates))
+        if wanted.tz is not None:
+            wanted = wanted.tz_localize(None)
+        data[feature] = values.dt.normalize().isin(wanted.normalize())
+        return data
+
+
+class MapValues(TransformBase):
+    """Write a new column by mapping an existing one through a dict.
+
+    Values missing from the mapping become `default`, so a two-entry
+    mapping plus a default covers "weekend, everything else weekday".
+    """
+
+    def transform(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        mapping: Dict[Any, Any],
+        feature: str,
+        default: Optional[Any] = None,
+    ) -> pd.DataFrame:
+        data[feature] = data[column].map(mapping)
+        if default is not None:
+            data[feature] = data[feature].fillna(default)
+        return data
+
+
+class SubtractBaseline(TransformBase):
+    """Subtract a baseline frame's column from the same column here, keyed on `on`.
+
+    The closing move of model-and-residual: the pipeline's frame carries the
+    measured values, `baseline` carries what the model says is normal, and
+    what flows on down the pipeline is the difference — the residual.
+    `feature` writes the difference to a new column; by default `column` is
+    replaced in place.
+    """
+
+    def transform(
+        self,
+        data: pd.DataFrame,
+        column: str,
+        baseline: pd.DataFrame,
+        on: str,
+        feature: Optional[str] = None,
+    ) -> pd.DataFrame:
+        colname = feature or column
+        merged = data.merge(
+            baseline[[on, column]], on=on, how="left", suffixes=("", "_baseline")
+        )
+        merged[colname] = merged[column] - merged[f"{column}_baseline"]
+        drop = [f"{column}_baseline"] + ([column] if colname != column else [])
+        return merged.drop(columns=drop)
+
+
 class Pipeline:
     """Pipeline for chaining data transformations."""
 

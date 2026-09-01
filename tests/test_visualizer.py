@@ -22,6 +22,7 @@ from goad_toolkit.visualizer import (  # noqa: E402
     CorrelationHeatmap,
     DecomposePlot,
     ECDFPlot,
+    FacetPlot,
     GroupedBarPlot,
     HeatmapPlot,
     HighlightCategory,
@@ -160,7 +161,15 @@ def test_acf_plot_returns_fig_and_ax(weekly_cycle):
     fig, ax = ACFPlot(PlotSettings()).plot(data=weekly_cycle["value"], nlags=14)
 
     assert fig is not None
-    assert len(ax.patches) == 15  # lags 0..14 inclusive
+    # One vlines call: a single LineCollection holding lags 0..14 inclusive.
+    # Lines rather than bars so hundreds of lags cannot alias into sub-pixel
+    # stripes with phantom gaps.
+    lag_lines = [
+        collection
+        for collection in ax.collections
+        if len(collection.get_paths()) == 15
+    ]
+    assert len(lag_lines) == 1
 
 
 def test_acf_plot_rejects_missing_values():
@@ -859,3 +868,114 @@ def test_null_plot_accepts_a_custom_label(null_result):
 
     legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
     assert legend_labels == ["my finding"]
+
+def test_plot_call_overrides_a_settings_field(data):
+    settings = PlotSettings(title="Shared title")
+
+    fig, ax = BarPlot(settings).plot(
+        data=data, x="date", y="deaths", title="This call only"
+    )
+
+    assert ax.get_title() == "This call only"
+
+
+def test_plot_call_override_leaves_the_shared_settings_untouched(data):
+    settings = PlotSettings(title="Shared title")
+
+    BarPlot(settings).plot(data=data, x="date", y="deaths", title="This call only")
+    fig, ax = BarPlot(settings).plot(data=data, x="date", y="deaths")
+
+    assert settings.title == "Shared title"
+    assert ax.get_title() == "Shared title"
+
+
+def test_plot_call_overrides_axis_labels(data):
+    fig, ax = BarPlot(PlotSettings()).plot(
+        data=data, x="date", y="deaths", xlabel="when", ylabel="how many"
+    )
+
+    assert ax.get_xlabel() == "when"
+    assert ax.get_ylabel() == "how many"
+
+
+def test_plot_call_override_reaches_a_layer_with_an_existing_figure(data):
+    settings = PlotSettings(title="Host title")
+    host = BarPlot(settings)
+    host.plot(data=data, x="date", y="deaths")
+
+    host.plot_on(HorizontalLine(settings), y=0, title="Layer retitled it")
+
+    assert host.ax.get_title() == "Layer retitled it"
+
+
+def test_plot_call_override_rotates_ticks(data):
+    fig, ax = BarPlot(PlotSettings()).plot(
+        data=data, x="date", y="deaths", xtick_rotation=45
+    )
+
+    assert all(label.get_rotation() == 45 for label in ax.get_xticklabels())
+
+
+@pytest.fixture
+def facetable() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "group": ["a"] * 4 + ["b"] * 4 + ["c"] * 4,
+            "x": list(range(4)) * 3,
+            "y": range(12),
+        }
+    )
+
+
+def test_facet_plot_draws_one_panel_per_level(facetable):
+    fig, axes = FacetPlot(PlotSettings(figsize=(9, 3))).plot(
+        inner=LinePlot(PlotSettings()), data=facetable, by="group", x="x", y="y"
+    )
+
+    visible = [ax for ax in axes if ax.get_visible()]
+    assert len(visible) == 3
+    assert [ax.get_title() for ax in visible] == ["a", "b", "c"]
+    assert all(len(ax.lines) == 1 for ax in visible)
+
+
+def test_facet_plot_respects_order(facetable):
+    fig, axes = FacetPlot(PlotSettings()).plot(
+        inner=LinePlot(PlotSettings()),
+        data=facetable,
+        by="group",
+        order=["c", "a", "b"],
+        x="x",
+        y="y",
+    )
+
+    visible = [ax for ax in axes if ax.get_visible()]
+    assert [ax.get_title() for ax in visible] == ["c", "a", "b"]
+
+
+def test_facet_plot_shares_the_y_scale_when_asked(facetable):
+    fig, axes = FacetPlot(PlotSettings(sharey=True)).plot(
+        inner=LinePlot(PlotSettings()), data=facetable, by="group", x="x", y="y"
+    )
+
+    visible = [ax for ax in axes if ax.get_visible()]
+    limits = {ax.get_ylim() for ax in visible}
+    assert len(limits) == 1
+
+
+def test_facet_plot_rejects_a_level_with_no_rows(facetable):
+    with pytest.raises(ValueError, match="No rows"):
+        FacetPlot(PlotSettings()).plot(
+            inner=LinePlot(PlotSettings()),
+            data=facetable,
+            by="group",
+            order=["a", "nope"],
+            x="x",
+            y="y",
+        )
+
+
+def test_facet_plot_rejects_a_missing_column(facetable):
+    with pytest.raises(ValueError, match="does not exist"):
+        FacetPlot(PlotSettings()).plot(
+            inner=LinePlot(PlotSettings()), data=facetable, by="nope", x="x", y="y"
+        )

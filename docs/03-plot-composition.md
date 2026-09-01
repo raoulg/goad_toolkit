@@ -54,6 +54,8 @@ class PlotSettings:
     subplot_xlabels: List[str] = field(default_factory=list)
     subplot_ylabels: List[str] = field(default_factory=list)
     xtick_rotation: Optional[float] = None
+    sharex: bool = False
+    sharey: bool = False
 ```
 
 `xlabel`/`ylabel` left as `None` are not blank — `create_figure` skips setting them at all,
@@ -63,9 +65,19 @@ column name whenever the label is still empty). Only an explicit `xlabel=`/`ylab
 correct axis labels for free from the column names you passed to `x=`/`y=`; reach for
 `xlabel=`/`ylabel=` only when the column name is not what you want a reader to see.
 
-It is a dataclass, so `dataclasses.replace(settings, title="Something else")` gives you a
-variant without mutating the original. Useful when a figure set shares everything but the
-title.
+For a one-off change, override in the `plot` call itself: any keyword that names a
+`PlotSettings` field is applied to that call and that call only, leaving the shared
+settings object untouched.
+
+```python
+BarPlot(settings).plot(data=west, x="quarter", y="revenue",
+                       title="West region, on its own")
+```
+
+That division of labour is deliberate: styling lives in settings, and the claim — the
+title, the odd label — lives at the point of use. For a *lasting* variant, the dataclass
+answer still applies: `dataclasses.replace(settings, figsize=(12, 4))` returns a new
+settings object to keep and reuse.
 
 `subplot_titles` is what makes multi-panel figures work: when a plot creates more than one
 axis, each gets the corresponding entry. `PlotFits` uses this to label each fitted
@@ -74,6 +86,9 @@ same idea for axis labels — panels showing different quantities get their own 
 the settings, not from `ax.set_ylabel` calls after the fact. On the panels they cover, the
 lists win over the figure-wide `xlabel`/`ylabel`. `xtick_rotation` rotates the x tick
 labels on every axis, for the date axes and long category names that overlap when flat.
+`sharex`/`sharey` make a multi-panel grid share one scale — without them each panel
+autoscales to its own data, and two shapes that look alike may sit on very different
+axes.
 
 ## 3.3 `BasePlot`
 
@@ -141,7 +156,17 @@ changed is the difference between a chart and an argument. See
 [Visual critique](07-visual-critique.md) §"integrate text".
 
 `plot_on_axes(other_plot, ax, ...)` is the same thing targeting a specific axis, which is how
-multi-panel figures get built.
+multi-panel figures get built. `FacetPlot` packages the most common multi-panel figure —
+the same plot repeated once per level of a column — into a single call:
+
+```python
+FacetPlot(settings).plot(inner=HistogramPlot(settings), data=msgs,
+                         by="day_name", order=days, x="hour", bins=range(25))
+```
+
+One panel per level of `by`, every panel drawn by `inner` with the same kwargs, panel
+titles defaulting to the level names. Set `sharey=True` in the settings so the panels
+share a scale and the shapes compare honestly.
 
 ## 3.5 Building up a plot, one layer at a time
 
@@ -181,7 +206,8 @@ step 3.
 | `BarWithDates` | bars with a month locator on the x axis | |
 | `ResidualPlot` | `BarWithDates` + `VerticalDate` | the residual-over-time view |
 | `DecomposePlot` | `seasonal_decompose`, one panel each | observed/trend/seasonal/residual, overrides `plot` |
-| `ACFPlot` | `acf` as bars with a confidence band | see [Five families §4.2](04-five-families.md) |
+| `FacetPlot` | any plot, once per level of a column | small multiples in one call; overrides `plot` |
+| `ACFPlot` | `acf` as vertical lines with a confidence band | see [Five families §4.2](04-five-families.md) |
 | `HistogramPlot` | `sns.histplot`, `stat="density"` | density so a pdf can be overlaid |
 | `DistPlot` | a scipy distribution's pdf or pmf | estimates its own x-range from `ppf` |
 | `PlotFits` | histogram + fitted pdf, one panel per fit | see [Distributions](05-distributions.md) |

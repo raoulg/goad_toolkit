@@ -2,8 +2,17 @@ import pandas as pd
 import pytest
 
 from goad_toolkit.datatransforms import (
+    CountValues,
+    Filter,
+    FlagDates,
+    GroupAgg,
+    Head,
+    MapValues,
     Pipeline,
     RegexFeature,
+    Share,
+    SortValues,
+    SubtractBaseline,
     TimeFeatures,
     TransformBase,
 )
@@ -255,3 +264,160 @@ def test_report_without_intermediates_says_what_to_do():
 
     with pytest.raises(ValueError, match="keep_intermediate=True"):
         pipeline.report()
+
+@pytest.fixture
+def chatlog() -> pd.DataFrame:
+    dates = pd.to_datetime(
+        ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-02", "2024-01-03"]
+    )
+    return pd.DataFrame(
+        {
+            "date": dates,
+            "author": ["ann", "bob", "ann", "ann", "bob"],
+            "day_name": dates.day_name(),
+            "n_chars": [10, 20, 30, 40, 50],
+        }
+    )
+
+
+def test_filter_keeps_only_matching_rows(chatlog):
+    result = Filter(expr="author == 'ann'")(chatlog)
+
+    assert len(result) == 3
+    assert set(result["author"]) == {"ann"}
+
+
+def test_sort_values_orders_rows(chatlog):
+    result = SortValues(column="n_chars", ascending=False)(chatlog)
+
+    assert result["n_chars"].tolist() == [50, 40, 30, 20, 10]
+
+
+def test_head_keeps_the_first_rows(chatlog):
+    result = Head(n=2)(chatlog)
+
+    assert len(result) == 2
+
+
+def test_count_values_counts_most_frequent_first(chatlog):
+    result = CountValues(column="author")(chatlog)
+
+    assert result.columns.tolist() == ["author", "n"]
+    assert result.iloc[0].tolist() == ["ann", 3]
+    assert result.iloc[1].tolist() == ["bob", 2]
+
+
+def test_count_values_normalizes_to_shares(chatlog):
+    result = CountValues(column="author", feature="share", normalize=True)(chatlog)
+
+    assert result["share"].sum() == pytest.approx(1.0)
+    assert result.loc[result.author == "ann", "share"].iloc[0] == pytest.approx(0.6)
+
+
+def test_group_agg_size_counts_rows_per_group(chatlog):
+    result = GroupAgg(by="author")(chatlog)
+
+    assert result.columns.tolist() == ["author", "n"]
+    assert result.set_index("author")["n"].to_dict() == {"ann": 3, "bob": 2}
+
+
+def test_group_agg_aggregates_a_column(chatlog):
+    result = GroupAgg(by="author", column="n_chars", agg="sum")(chatlog)
+
+    assert result.set_index("author")["n_chars"].to_dict() == {"ann": 80, "bob": 70}
+
+
+def test_group_agg_without_a_column_rejects_other_aggregations(chatlog):
+    with pytest.raises(ValueError, match="needs a column"):
+        GroupAgg(by="author", agg="sum")(chatlog)
+
+
+def test_share_divides_by_the_total(chatlog):
+    result = Share(column="n_chars", feature="share")(chatlog.copy())
+
+    assert result["share"].sum() == pytest.approx(1.0)
+    assert "n_chars" in result.columns
+
+
+def test_share_replaces_the_column_when_no_name_is_given(chatlog):
+    result = Share(column="n_chars")(chatlog.copy())
+
+    assert result["n_chars"].sum() == pytest.approx(1.0)
+
+
+def test_share_normalizes_within_groups(chatlog):
+    result = Share(column="n_chars", by="author", feature="share")(chatlog.copy())
+
+    per_group = result.groupby("author")["share"].sum()
+    assert per_group["ann"] == pytest.approx(1.0)
+    assert per_group["bob"] == pytest.approx(1.0)
+
+
+def test_flag_dates_marks_the_listed_days(chatlog):
+    result = FlagDates(column="date", dates=["2024-01-02"], feature="is_event")(
+        chatlog.copy()
+    )
+
+    assert result["is_event"].tolist() == [False, False, True, True, False]
+
+
+def test_map_values_maps_and_fills_the_default(chatlog):
+    result = MapValues(
+        column="day_name",
+        mapping={"Saturday": "weekend", "Sunday": "weekend"},
+        feature="period",
+        default="weekday",
+    )(chatlog.copy())
+
+    assert set(result["period"]) == {"weekday"}
+
+
+def test_subtract_baseline_leaves_the_residual():
+    observed = pd.DataFrame({"hour": [0, 1, 2], "share": [0.5, 0.3, 0.2]})
+    baseline = pd.DataFrame({"hour": [0, 1, 2], "share": [0.4, 0.4, 0.2]})
+
+    result = SubtractBaseline(column="share", baseline=baseline, on="hour")(observed)
+
+    assert result.columns.tolist() == ["hour", "share"]
+    assert result["share"].tolist() == pytest.approx([0.1, -0.1, 0.0])
+
+
+def test_subtract_baseline_can_name_the_residual():
+    observed = pd.DataFrame({"hour": [0, 1], "share": [0.5, 0.5]})
+    baseline = pd.DataFrame({"hour": [0, 1], "share": [0.3, 0.7]})
+
+    result = SubtractBaseline(
+        column="share", baseline=baseline, on="hour", feature="difference"
+    )(observed)
+
+    assert result.columns.tolist() == ["hour", "difference"]
+    assert result["difference"].tolist() == pytest.approx([0.2, -0.2])
+
+
+def test_new_transforms_chain_in_a_pipeline(chatlog):
+    pipeline = (
+        Pipeline()
+        .add(Filter, expr="n_chars >= 30")
+        .add(CountValues, column="author")
+        .add(SortValues, column="n", ascending=False)
+        .add(Head, n=1)
+    )
+
+    result = pipeline.apply(chatlog)
+
+    assert result["author"].tolist() == ["ann"]
+    assert result["n"].tolist() == [2]
+
+
+def test_flag_dates_matches_timestamps_by_calendar_day():
+    frame = pd.DataFrame(
+        {"timestamp": pd.to_datetime(
+            ["2024-01-01 09:15", "2024-01-02 23:59", "2024-01-03 00:00"]
+        ).tz_localize("UTC")}
+    )
+
+    result = FlagDates(
+        column="timestamp", dates=["2024-01-02"], feature="is_event"
+    )(frame)
+
+    assert result["is_event"].tolist() == [False, True, False]

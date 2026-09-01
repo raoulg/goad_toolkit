@@ -85,6 +85,15 @@ class TransformBase(ABC):
 | `ZScaler` | `column: str, rename: bool = False` |
 | `TimeFeatures` | `column: str, features: Optional[List[str]] = None` |
 | `RegexFeature` | `column: str, pattern: str, feature: str, mode: str = "count"` |
+| `Filter` | `expr: str` — pandas `query` syntax |
+| `SortValues` | `column: str, ascending: bool = True` |
+| `Head` | `n: int` |
+| `CountValues` | `column: str, feature: str = "n", normalize: bool = False` |
+| `GroupAgg` | `by, column: Optional[str] = None, agg: str = "size", feature: Optional[str] = None` |
+| `Share` | `column: str, feature: Optional[str] = None, by=None` |
+| `FlagDates` | `column: str, dates, feature: str` |
+| `MapValues` | `column: str, mapping: Dict, feature: str, default=None` |
+| `SubtractBaseline` | `column: str, baseline: pd.DataFrame, on: str, feature: Optional[str] = None` |
 
 `rename=True` writes to `{column}_shifted` / `_diff` / `_rolling_avg` / `_zscore` instead of
 overwriting.
@@ -97,7 +106,14 @@ overwriting.
 capture group, NaN where nothing matched); anything else raises `ValueError`. `extract`
 requires exactly one capture group in `pattern` and logs its match rate through `loguru`.
 The output column is `feature`, not `name` — `Pipeline.add(name=...)` already claims `name`
-for the step.
+for the step. The same spelling holds for every transform that names an output column
+(`CountValues`, `GroupAgg`, `Share`, `FlagDates`, `MapValues`, `SubtractBaseline`).
+
+`Filter`, `SortValues`, `Head`, `CountValues` and `GroupAgg` reshape the frame rather than
+adding columns to it — like a bespoke parse step, they return a different frame, and the
+steps after them see the new shape. `Share(by=...)` normalises within groups, so every
+group sums to one separately. `SubtractBaseline` merges `baseline` on `on` and leaves the
+difference — the residual of a model-and-residual move — flowing down the pipeline.
 
 ```python
 class Pipeline:
@@ -304,6 +320,8 @@ class PlotSettings:
     subplot_ylabels: List[str] = field(default_factory=list)  # per-panel, wins over ylabel
     xtick_rotation: Optional[float] = None               # rotate x tick labels, every axis
     max_cols: int = 3                                    # columns before wrapping
+    sharex: bool = False                                 # subplot grids share one x-scale
+    sharey: bool = False                                 # subplot grids share one y-scale
     highlight: List[str] = field(default_factory=list)   # defaults for HighlightCategory
     base_color: str = "lightgrey"
     highlight_color: str = "crimson"
@@ -324,6 +342,10 @@ class BasePlot(ABC):
     def __init__(self, settings: PlotSettings, n_plots: Optional[int] = None)
     def plot(self, n_plots: Optional[int] = None, *args, **kwargs)
     def create_figure(self, n_plots: Optional[int] = None)      # -> (fig, axes)
+    # plot() treats any kwarg naming a PlotSettings field (title, xlabel, ...) as a
+    # per-call override: applied to this instance before the figure is configured,
+    # the shared settings object untouched. On an existing figure (a layer), only
+    # the axis-level fields — title, xlabel, ylabel, xtick_rotation — still apply.
     def plot_on(self, other_plot: "BasePlot", *args, **kwargs)
     def plot_on_axes(self, other_plot: "BasePlot", ax: Axes, *args, **kwargs)
     def build(self, *args, **kwargs)                            # you implement
@@ -337,7 +359,7 @@ class BasePlot(ABC):
 | `VerticalLine` | `x: float, label=None, color="crimson", linestyle="--", linewidth=2, **kwargs` |
 | `HorizontalLine` | `y: float, label=None, color="grey", linestyle="-", linewidth=1, **kwargs` |
 | `ComparePlotDate` | `data, x, y1, y2, date, datelabel, **kwargs` |
-| `BarPlot` | `data, x, y, order=None, xtick_rotation=None, **kwargs` → `sns.barplot` |
+| `BarPlot` | `data, x, y, order=None, **kwargs` → `sns.barplot` |
 | `GroupedBarPlot` | `data, x, y, hue, order=None, hue_order=None, **kwargs` |
 | `HeatmapPlot` | `data, index=None, columns=None, values=None, aggfunc="mean", cmap="rocket_r", annot=True, fmt=".1f", **kwargs` |
 | `BarbellPlot` | `data, category, start, end, start_label="before", end_label="after", start_color="lightgrey", end_color="crimson", line_color="lightgrey", markersize=80, **kwargs` |
@@ -350,9 +372,9 @@ class BasePlot(ABC):
 | `ScatterPlot` | `data, x, y, alpha=0.6, **kwargs` → `sns.scatterplot` (`hue`, `size`, `style`) |
 | `RegPlot` | `data, x, y, fit_reg=True, lowess=False, order=1, scatter=True, color="crimson", **kwargs` → `sns.regplot` |
 | `CorrelationHeatmap` | `data, columns=None, method="pearson", cmap="vlag", annot=True, fmt=".2f", **kwargs` |
-| `HistogramPlot` | `data: np.ndarray, bins=None, kde=False, color="skyblue", alpha=0.7, **kwargs` |
+| `HistogramPlot` | `data, bins=None, kde=False, color="skyblue", alpha=0.7, stat="density", **kwargs` |
 | `DistPlot` | `distribution, x_range=None, samples=1000, color="crimson", linewidth=2, label=None, **kwargs` |
-| `ACFPlot` | `data, nlags=40, alpha=0.05, color="steelblue", band_color="gray", **kwargs` |
+| `ACFPlot` | `data, nlags=40, alpha=0.05, color="steelblue", band_color="gray", linewidth=1.5, **kwargs` |
 | `QQPlot` | `data, distribution, color="steelblue", line_color="black", alpha=0.6, **kwargs` |
 | `ECDFPlot` | `data, compare=None, label="data", compare_label="compare", color="steelblue", compare_color="crimson", **kwargs` |
 | `NullPlot` | `result: NullResult, bins=None, alternative="two-sided", color="lightgrey", line_color="crimson", label=None, **kwargs` |
@@ -366,6 +388,10 @@ class PlotFits(BasePlot):
 class DecomposePlot(BasePlot):
     def plot(self, data: pd.DataFrame, column: str, period: int,
              model: str = "additive", **kwargs) -> Figure
+
+class FacetPlot(BasePlot):
+    def plot(self, inner: BasePlot, data: pd.DataFrame, by: str,
+             order: Optional[List[str]] = None, **kwargs)      # -> (fig, axes)
 ```
 
 Every `build` returns `(self.fig, self.ax)`, and every plot draws on `self.ax` / `self.fig`
@@ -373,8 +399,12 @@ rather than on matplotlib's current axes, so a layer placed with `plot_on_axes` 
 axis it was handed.
 
 `PlotFits` overrides `plot` rather than `build`, because the panel count depends on the fit
-results. `HistogramPlot` uses `stat="density"` so a pdf overlays correctly; `DistPlot` takes a
-**frozen** distribution and falls back to `pmf` when there is no `pdf`.
+results — and so does `FacetPlot`, whose panel count comes from the data: one panel per
+level of `by`, each drawn by `inner` with the same kwargs, titles defaulting to the level
+names. `HistogramPlot` defaults to `stat="density"` so a pdf overlays correctly (pass
+`stat="count"` for plain counts); `DistPlot` takes a **frozen** distribution and falls back
+to `pmf` when there is no `pdf`. `ACFPlot` draws each lag as a vertical line rather than a
+bar — line width is in points, so hundreds of lags cannot alias into sub-pixel stripes.
 
 `NullPlot` composes `HistogramPlot` and `VerticalLine`: grey cloud, coloured line. It writes
 the observed value and its p-value into the legend, using `≤` when the p-value is at the

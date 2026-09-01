@@ -60,6 +60,15 @@ input frame is safe, and the steps stay cheap.
 | `ZScaler` | standardise to mean 0, std 1 | `column`, `rename` |
 | `TimeFeatures` | derive calendar columns from a timestamp | `column`, `features` |
 | `RegexFeature` | count / flag / extract a pattern in a text column | `column`, `pattern`, `feature`, `mode` |
+| `Filter` | keep the rows a `query` expression selects | `expr` |
+| `SortValues` | sort rows by a column | `column`, `ascending` |
+| `Head` | keep the first n rows — after a sort, a top-n | `n` |
+| `CountValues` | one row per distinct value, with its count or share | `column`, `feature`, `normalize` |
+| `GroupAgg` | one row per group, one aggregated value | `by`, `column`, `agg`, `feature` |
+| `Share` | divide a column by its (per-group) total | `column`, `feature`, `by` |
+| `FlagDates` | boolean column marking the listed dates | `column`, `dates`, `feature` |
+| `MapValues` | map a column through a dict, with a default | `column`, `mapping`, `feature`, `default` |
+| `SubtractBaseline` | subtract a baseline frame's column, keyed on a column | `column`, `baseline`, `on`, `feature` |
 
 `rename=True` writes to a new column (`deaths_shifted`, `deaths_zscore`, …) instead of
 overwriting. Prefer it. An overwritten column is a step you cannot debug, and the whole

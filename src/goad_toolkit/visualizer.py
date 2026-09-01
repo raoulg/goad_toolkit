@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 from typing import Any, List, Optional, Tuple
 
 import matplotlib.category as mpc
@@ -34,6 +34,8 @@ class PlotSettings:
     subplot_ylabels: List[str] = field(default_factory=list)  # One ylabel per subplot
     xtick_rotation: Optional[float] = None  # Rotate x tick labels on every axis
     max_cols: int = 3  # Columns before create_figure wraps to a new row
+    sharex: bool = False  # Subplot grids share one x-scale
+    sharey: bool = False  # Subplot grids share one y-scale, so shapes compare honestly
     highlight: List[str] = field(default_factory=list)  # Categories to pick out
     base_color: str = "lightgrey"  # Everything that is not highlighted
     highlight_color: str = "crimson"  # The categories that are
@@ -58,9 +60,42 @@ class BasePlot(ABC):
         self.ax = None
 
     def plot(self, n_plots: Optional[int] = None, *args, **kwargs):
-        """Abstract method for plotting data."""
+        """Create the figure if needed, then hand the drawing to `build`.
+
+        Any keyword that names a `PlotSettings` field (`title`, `xlabel`,
+        `ylabel`, ...) overrides that field for this instance before the
+        figure is configured, so a one-off claim can live in the call while
+        the shared settings object stays untouched:
+
+            BarPlot(settings).plot(data=west, x="quarter", y="revenue",
+                                   title="West region, on its own")
+
+        When the figure already exists — a layer drawn with `plot_on` or
+        `plot_on_axes` — only the axis-level fields (`title`, `xlabel`,
+        `ylabel`, `xtick_rotation`) can still take effect; the rest shaped
+        the figure at creation time.
+        """
+        overrides = {
+            f.name: kwargs.pop(f.name)
+            for f in fields(PlotSettings)
+            if f.name in kwargs
+        }
+        if overrides:
+            self.settings = replace(self.settings, **overrides)
         if self.fig is None:
             self.create_figure(n_plots)
+        elif overrides and self.ax is not None:
+            if "title" in overrides:
+                self.ax.set_title(self.settings.title)
+            if "xlabel" in overrides and self.settings.xlabel is not None:
+                self.ax.set_xlabel(self.settings.xlabel)
+            if "ylabel" in overrides and self.settings.ylabel is not None:
+                self.ax.set_ylabel(self.settings.ylabel)
+            if (
+                "xtick_rotation" in overrides
+                and self.settings.xtick_rotation is not None
+            ):
+                self.ax.tick_params(axis="x", rotation=self.settings.xtick_rotation)
         return self.build(*args, **kwargs)
 
     def create_figure(self, n_plots: Optional[int] = None):
@@ -88,6 +123,8 @@ class BasePlot(ABC):
                 figsize=self.settings.figsize,
                 squeeze=False,
                 layout="constrained",
+                sharex=self.settings.sharex,
+                sharey=self.settings.sharey,
             )
             axes = axes.flatten()
             # Hide unused axes
@@ -555,7 +592,6 @@ class BarPlot(BasePlot):
         x: str,
         y: str,
         order: Optional[List[str]] = None,
-        xtick_rotation: Optional[float] = None,
         **kwargs,
     ):
         """
@@ -573,18 +609,16 @@ class BarPlot(BasePlot):
         order : Optional[List[str]]
             Category order. Seaborn's own order (first appearance) is used
             when this is None.
-        xtick_rotation : Optional[float]
-            Rotate the category labels, for names too long to sit flat.
         **kwargs : Additional keyword arguments passed to `sns.barplot`,
-            including `estimator`, `errorbar`, `color` and `hue`.
+            including `estimator`, `errorbar`, `color` and `hue`. Rotating
+            long category labels is a settings field: `xtick_rotation`,
+            either in `PlotSettings` or overridden in the `plot` call.
 
         Returns:
         --------
         fig, ax : The created figure and axes.
         """
         sns.barplot(data=data, x=x, y=y, order=order, ax=self.ax, **kwargs)
-        if xtick_rotation is not None and self.ax is not None:
-            self.ax.tick_params(axis="x", rotation=xtick_rotation)
         return self.fig, self.ax
 
 
@@ -702,6 +736,65 @@ class HeatmapPlot(BasePlot):
 
         sns.heatmap(matrix, cmap=cmap, annot=annot, fmt=fmt, ax=self.ax, **kwargs)
         return self.fig, self.ax
+
+
+class FacetPlot(BasePlot):
+    """The same plot once per level of a column — small multiples in one call.
+
+    Wraps `create_figure(n_plots=...)` plus `plot_on_axes` for the most
+    common grid there is: one panel per level of a categorical column, every
+    panel drawn by the same plot with the same kwargs. Panel titles default
+    to the level names; `settings.subplot_titles` overrides them, and
+    `settings.sharey=True` puts every panel on one scale so the shapes
+    compare honestly.
+    """
+
+    def plot(  # type: ignore[override]
+        self,
+        inner: "BasePlot",
+        data: pd.DataFrame,
+        by: str,
+        order: Optional[List[str]] = None,
+        **kwargs,
+    ):
+        """
+        Draw `inner` once per level of `data[by]`.
+
+        Parameters:
+        -----------
+        inner : BasePlot
+            The plot instance that draws every panel.
+        data : pd.DataFrame
+            Frame holding the facet column and whatever `inner` needs.
+        by : str
+            Column whose levels become the panels.
+        order : Optional[List[str]]
+            Panel order. Sorted level names when None.
+        **kwargs : Passed to `inner.plot` on every panel — the `x=`, `y=`,
+            `bins=`, colours, whatever the inner plot takes.
+
+        Returns:
+        --------
+        fig, axes : The created figure and the list of axes.
+        """
+        if by not in data.columns:
+            raise ValueError(f"Column '{by}' does not exist in the dataframe.")
+        present = set(data[by].dropna().unique())
+        levels = list(order) if order is not None else sorted(present)
+        missing = [level for level in levels if level not in present]
+        if missing:
+            raise ValueError(f"No rows for {missing} in column '{by}'")
+
+        if not self.settings.subplot_titles:
+            self.settings.subplot_titles = [str(level) for level in levels]
+        self.fig, axes = self.create_figure(n_plots=len(levels))
+        for ax, level in zip(axes, levels):
+            self.plot_on_axes(inner, ax, data=data[data[by] == level], **kwargs)
+        return self.fig, axes
+
+    def build(self):
+        """No-op: `FacetPlot` overrides `plot` because the panel count comes from the data."""
+        pass
 
 
 class BarbellPlot(BasePlot):
@@ -878,6 +971,7 @@ class ACFPlot(BasePlot):
         alpha: float = 0.05,
         color: str = "steelblue",
         band_color: str = "gray",
+        linewidth: float = 1.5,
         **kwargs,
     ):
         """
@@ -893,10 +987,12 @@ class ACFPlot(BasePlot):
         alpha : float
             Significance level for the confidence band.
         color : str
-            Bar color.
+            Line color for the lag markers.
         band_color : str
             Confidence band color.
-        **kwargs : Additional keyword arguments passed to `ax.bar`.
+        linewidth : float
+            Width of each lag's line, in points.
+        **kwargs : Additional keyword arguments passed to `ax.vlines`.
 
         Returns:
         --------
@@ -919,7 +1015,10 @@ class ACFPlot(BasePlot):
 
         self.ax.fill_between(lags, -band, band, color=band_color, alpha=0.2)
         self.ax.axhline(0, color="black", linewidth=0.8)
-        self.ax.bar(lags, values, color=color, width=0.3, **kwargs)
+        # vlines, not bar: line width is in points, so every lag stays visible.
+        # Hundreds of data-unit-wide bars alias into sub-pixel stripes — lags
+        # vanish or double up depending on where they land on the pixel grid.
+        self.ax.vlines(lags, 0, values, color=color, linewidth=linewidth, **kwargs)
 
         return self.fig, self.ax
 
@@ -1238,6 +1337,7 @@ class HistogramPlot(BasePlot):
         kde: bool = False,
         color: str = "skyblue",
         alpha: float = 0.7,
+        stat: str = "density",
         **kwargs,
     ):
         """
@@ -1255,7 +1355,12 @@ class HistogramPlot(BasePlot):
             Color of the histogram
         alpha : float
             Transparency of the histogram
-        **kwargs : Additional keyword arguments passed to sns.histplot
+        stat : str
+            Passed to `sns.histplot`. `"density"` by default, so a fitted
+            pdf (`DistPlot`) can overlay on the same scale; `"count"` for
+            plain how-many-per-bin histograms.
+        **kwargs : Additional keyword arguments passed to sns.histplot,
+            including `x=` to pick a column when `data` is a DataFrame.
 
         Returns:
         --------
@@ -1273,7 +1378,7 @@ class HistogramPlot(BasePlot):
             color=color,
             alpha=alpha,
             ax=self.ax,
-            stat="density",  # Use density for overlay compatibility
+            stat=stat,
             **kwargs,
         )
 

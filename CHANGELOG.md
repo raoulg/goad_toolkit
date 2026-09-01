@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.15
+
+### Added
+
+- **Per-call settings overrides.** Any keyword passed to `plot()` that names a
+  `PlotSettings` field (`title`, `xlabel`, `ylabel`, ...) overrides that field for that
+  call only, leaving the shared settings object untouched — the claim lives in the call,
+  the styling stays in the settings. On a layer whose figure already exists, the
+  axis-level fields (`title`, `xlabel`, `ylabel`, `xtick_rotation`) still apply.
+- `FacetPlot`: the same plot once per level of a column — small multiples in one call,
+  with panel titles defaulting to the level names.
+- `PlotSettings.sharex` / `sharey`: subplot grids share one scale, so panel shapes
+  compare honestly. `FacetPlot` is the main customer.
+- A pipeline vocabulary for the counting-and-shares work notebooks kept doing in loose
+  cells: `Filter`, `SortValues`, `Head`, `CountValues`, `GroupAgg`, `Share`, `FlagDates`,
+  `MapValues`, `SubtractBaseline`. Output-column parameters are spelled `feature`, the
+  `RegexFeature` convention, since `name` names the pipeline step.
+- `HistogramPlot.build` takes `stat` (default `"density"`), so count histograms no longer
+  need a raw seaborn call.
+
+### Fixed
+
+- `ACFPlot` draws each lag as a vertical line (`ax.vlines`) instead of a 0.3-wide bar.
+  With hundreds of lags the bars were narrower than a pixel and aliased against the
+  pixel grid — lags vanished into phantom gaps or doubled up into dark stripes. Line
+  width is in points, so every lag now stays visible at any `nlags`.
+
+### Changed
+
+- `BarPlot.build` no longer takes `xtick_rotation`; the per-call override
+  (`plot(..., xtick_rotation=45)`) and the `PlotSettings` field cover both paths.
+
 ## 0.2.14
 
 ### Added
