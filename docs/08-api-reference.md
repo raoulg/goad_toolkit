@@ -300,6 +300,9 @@ class PlotSettings:
     grid: bool = False
     grid_alpha: Optional[float] = None
     subplot_titles: List[str] = field(default_factory=list)
+    subplot_xlabels: List[str] = field(default_factory=list)  # per-panel, wins over xlabel
+    subplot_ylabels: List[str] = field(default_factory=list)  # per-panel, wins over ylabel
+    xtick_rotation: Optional[float] = None               # rotate x tick labels, every axis
     max_cols: int = 3                                    # columns before wrapping
     highlight: List[str] = field(default_factory=list)   # defaults for HighlightCategory
     base_color: str = "lightgrey"
@@ -332,8 +335,9 @@ class BasePlot(ABC):
 | `ComparePlot` | `data, x, y1, y2, **kwargs` |
 | `VerticalDate` | `date: str, label: str` |
 | `VerticalLine` | `x: float, label=None, color="crimson", linestyle="--", linewidth=2, **kwargs` |
+| `HorizontalLine` | `y: float, label=None, color="grey", linestyle="-", linewidth=1, **kwargs` |
 | `ComparePlotDate` | `data, x, y1, y2, date, datelabel, **kwargs` |
-| `BarPlot` | `data, x, y, order=None, **kwargs` → `sns.barplot` |
+| `BarPlot` | `data, x, y, order=None, xtick_rotation=None, **kwargs` → `sns.barplot` |
 | `GroupedBarPlot` | `data, x, y, hue, order=None, hue_order=None, **kwargs` |
 | `HeatmapPlot` | `data, index=None, columns=None, values=None, aggfunc="mean", cmap="rocket_r", annot=True, fmt=".1f", **kwargs` |
 | `BarbellPlot` | `data, category, start, end, start_label="before", end_label="after", start_color="lightgrey", end_color="crimson", line_color="lightgrey", markersize=80, **kwargs` |

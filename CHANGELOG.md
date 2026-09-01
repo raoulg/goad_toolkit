@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.14
+
+### Added
+
+- `PlotSettings.subplot_xlabels` / `subplot_ylabels`: per-panel axis labels, the
+  `subplot_titles` idea extended to labels. On the panels they cover they win over the
+  figure-wide `xlabel`/`ylabel`, so a multi-panel figure with panels showing different
+  quantities needs no `ax.set_ylabel` calls.
+- `HorizontalLine`: a layer marking one value on the y-axis — the reference line a residual
+  plot is read against. Defaults to a quiet grey line rather than `VerticalLine`'s crimson
+  marker, because a baseline is context, not a finding.
+- `BarPlot.build` takes `xtick_rotation` for category labels too long to sit flat.
+- `PlotSettings.xtick_rotation`: the same rotation as a figure-wide setting, applied to
+  every axis — for date axes whose labels overlap when flat.
+
+### Changed
+
+- Multi-panel grids from `create_figure` use constrained layout, which spaces panels,
+  labels and the suptitle at draw time — after every layer has landed — so figures no
+  longer need a trailing `fig.tight_layout()`.
+
 ## 0.2.1
 
 ### Breaking

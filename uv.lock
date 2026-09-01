@@ -383,7 +383,7 @@ wheels = [
 
 [[package]]
 name = "goad-toolkit"
-version = "0.2.13"
+version = "0.2.14"
 source = { editable = "." }
 dependencies = [
     { name = "loguru" },

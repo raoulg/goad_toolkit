@@ -51,6 +51,9 @@ class PlotSettings:
     grid: bool = False
     grid_alpha: Optional[float] = None
     subplot_titles: List[str] = field(default_factory=list)
+    subplot_xlabels: List[str] = field(default_factory=list)
+    subplot_ylabels: List[str] = field(default_factory=list)
+    xtick_rotation: Optional[float] = None
 ```
 
 `xlabel`/`ylabel` left as `None` are not blank — `create_figure` skips setting them at all,
@@ -66,7 +69,11 @@ title.
 
 `subplot_titles` is what makes multi-panel figures work: when a plot creates more than one
 axis, each gets the corresponding entry. `PlotFits` uses this to label each fitted
-distribution with its own test statistics.
+distribution with its own test statistics. `subplot_xlabels` and `subplot_ylabels` are the
+same idea for axis labels — panels showing different quantities get their own labels from
+the settings, not from `ax.set_ylabel` calls after the fact. On the panels they cover, the
+lists win over the figure-wide `xlabel`/`ylabel`. `xtick_rotation` rotates the x tick
+labels on every axis, for the date axes and long category names that overlap when flat.
 
 ## 3.3 `BasePlot`
 
@@ -89,6 +96,8 @@ The contract:
 
 `create_figure(n_plots=...)` handles the layout: one axis for a single plot, otherwise a grid
 wrapping at `settings.max_cols` columns — three by default — with the unused axes hidden.
+The grid uses constrained layout, which spaces panels, labels and the suptitle at draw
+time — after every layer has landed — so a figure never needs a `tight_layout()` call.
 Labels, grid and titles are applied to every visible axis. Set `max_cols=4` for a quartet or
 `max_cols=2` for a square grid; four panels at the default wrap to 3 + 1, which is rarely
 what a set of four wants.
@@ -158,6 +167,7 @@ step 3.
 | `ComparePlot` | two lines with labels | `LinePlot` twice via `plot_on` |
 | `VerticalDate` | a labelled vertical line at a date | a layer, not a plot |
 | `VerticalLine` | the same at a number | a layer, not a plot |
+| `HorizontalLine` | a reference level on the y-axis, usually zero | a layer; the line a residual is read against |
 | `ComparePlotDate` | `ComparePlot` + `VerticalDate` | |
 | `BarPlot` | `sns.barplot`, one bar per category | see [Five families §4.1](04-five-families.md) |
 | `GroupedBarPlot` | bars split by `hue` | two categorical variables at once |

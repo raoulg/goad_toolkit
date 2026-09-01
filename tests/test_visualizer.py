@@ -25,6 +25,7 @@ from goad_toolkit.visualizer import (  # noqa: E402
     GroupedBarPlot,
     HeatmapPlot,
     HighlightCategory,
+    HorizontalLine,
     LinePlot,
     NullPlot,
     PlotSettings,
@@ -235,6 +236,21 @@ def test_vertical_line_without_a_label_has_no_legend():
     assert ax.get_legend() is None
 
 
+def test_horizontal_line_draws_at_the_requested_y():
+    fig, ax = HorizontalLine(PlotSettings()).plot(y=0.0, label="baseline")
+
+    assert fig is not None
+    assert ax.lines[0].get_ydata()[0] == pytest.approx(0.0)
+    legend_labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert legend_labels == ["baseline"]
+
+
+def test_horizontal_line_without_a_label_has_no_legend():
+    fig, ax = HorizontalLine(PlotSettings()).plot(y=1.0)
+
+    assert ax.get_legend() is None
+
+
 @pytest.fixture
 def null_result() -> NullResult:
     rng = np.random.default_rng(4)
@@ -303,6 +319,36 @@ def test_max_cols_of_two_gives_a_square_grid():
     fig, axes = host.create_figure(n_plots=4)
 
     assert fig.axes[0].get_subplotspec().get_gridspec().get_geometry() == (2, 2)
+
+
+def test_subplot_labels_apply_per_panel():
+    settings = PlotSettings(
+        subplot_xlabels=["author", "messages"],
+        subplot_ylabels=["count", "length"],
+    )
+    host = LinePlot(settings)
+    fig, axes = host.create_figure(n_plots=2)
+
+    assert [ax.get_xlabel() for ax in axes] == ["author", "messages"]
+    assert [ax.get_ylabel() for ax in axes] == ["count", "length"]
+
+
+def test_xtick_rotation_setting_applies_to_every_axis():
+    host = LinePlot(PlotSettings(xtick_rotation=45))
+    fig, axes = host.create_figure(n_plots=2)
+
+    fig.canvas.draw()
+    for ax in axes:
+        assert all(t.get_rotation() == pytest.approx(45) for t in ax.get_xticklabels())
+
+
+def test_subplot_labels_win_over_the_figure_wide_label():
+    settings = PlotSettings(ylabel="shared", subplot_ylabels=["only the first"])
+    host = LinePlot(settings)
+    fig, axes = host.create_figure(n_plots=2)
+
+    assert axes[0].get_ylabel() == "only the first"
+    assert axes[1].get_ylabel() == "shared"
 
 
 def test_annotate_writes_the_text_on_the_axis():
@@ -428,6 +474,15 @@ def test_bar_plot_draws_one_bar_per_category(categories):
         "Chinstrap",
         "Gentoo",
     ]
+
+
+def test_bar_plot_rotates_its_tick_labels_on_request(categories):
+    fig, ax = BarPlot(PlotSettings()).plot(
+        data=categories, x="species", y="mass", xtick_rotation=45
+    )
+
+    fig.canvas.draw()
+    assert all(t.get_rotation() == pytest.approx(45) for t in ax.get_xticklabels())
 
 
 def test_bar_plot_takes_an_explicit_order(categories):

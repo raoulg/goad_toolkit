@@ -30,6 +30,9 @@ class PlotSettings:
     grid: bool = False  # Added grid option
     grid_alpha: Optional[float] = None  # Grid transparency
     subplot_titles: List[str] = field(default_factory=list)  # Titles for subplots
+    subplot_xlabels: List[str] = field(default_factory=list)  # One xlabel per subplot
+    subplot_ylabels: List[str] = field(default_factory=list)  # One ylabel per subplot
+    xtick_rotation: Optional[float] = None  # Rotate x tick labels on every axis
     max_cols: int = 3  # Columns before create_figure wraps to a new row
     highlight: List[str] = field(default_factory=list)  # Categories to pick out
     base_color: str = "lightgrey"  # Everything that is not highlighted
@@ -76,9 +79,15 @@ class BasePlot(ABC):
             # Determine grid layout
             grid_cols = min(self.settings.max_cols, n_plots)
             grid_rows = int(np.ceil(n_plots / grid_cols))
-            # Create subplot grid
+            # Create subplot grid. Constrained layout keeps panels, labels and the
+            # suptitle from colliding, and recomputes at draw time -- after every
+            # layer has landed -- so no tight_layout() call is needed afterwards.
             self.fig, axes = plt.subplots(
-                grid_rows, grid_cols, figsize=self.settings.figsize, squeeze=False
+                grid_rows,
+                grid_cols,
+                figsize=self.settings.figsize,
+                squeeze=False,
+                layout="constrained",
             )
             axes = axes.flatten()
             # Hide unused axes
@@ -92,14 +101,23 @@ class BasePlot(ABC):
             if ax.get_visible():
                 # None means "let the plotting call decide" -- seaborn fills the axis
                 # label in from the column name whenever the label is still empty, so
-                # only an explicit xlabel/ylabel should pre-empt that.
-                if self.settings.xlabel is not None:
-                    ax.set_xlabel(self.settings.xlabel)
-                if self.settings.ylabel is not None:
-                    ax.set_ylabel(self.settings.ylabel)
+                # only an explicit xlabel/ylabel should pre-empt that. The per-subplot
+                # lists win over the figure-wide label on the panels they cover.
+                xlabel = self.settings.xlabel
+                if i < len(self.settings.subplot_xlabels):
+                    xlabel = self.settings.subplot_xlabels[i]
+                if xlabel is not None:
+                    ax.set_xlabel(xlabel)
+                ylabel = self.settings.ylabel
+                if i < len(self.settings.subplot_ylabels):
+                    ylabel = self.settings.subplot_ylabels[i]
+                if ylabel is not None:
+                    ax.set_ylabel(ylabel)
                 # Apply grid if requested
                 if self.settings.grid:
                     ax.grid(True, alpha=self.settings.grid_alpha)
+                if self.settings.xtick_rotation is not None:
+                    ax.tick_params(axis="x", rotation=self.settings.xtick_rotation)
 
                 # Set subplot titles if available
                 if i < len(self.settings.subplot_titles):
@@ -111,7 +129,6 @@ class BasePlot(ABC):
                 self.ax.set_title(self.settings.title)
         else:
             self.fig.suptitle(self.settings.title, fontsize=16)
-            self.fig.tight_layout(rect=(0, 0, 1, 0.96))  # Make room for suptitle
 
         if self.settings.legend_title is not None:
             self.ax.legend(title=self.settings.legend_title)
@@ -176,7 +193,13 @@ class BasePlot(ABC):
 
 
 class LinePlot(BasePlot):
-    """Plot a line plot using seaborn."""
+    """Plot a line plot using seaborn.
+
+    Seaborn drops rows with missing values before drawing, so a gap in the data
+    is connected straight through rather than left open. When absent data must
+    look absent — a reindexed series with `NaN` holes — draw with `ax.plot`,
+    which breaks the line at every `NaN`.
+    """
 
     def build(self, data: pd.DataFrame, **kwargs):
         sns.lineplot(data=data, ax=self.ax, **kwargs)
@@ -254,6 +277,61 @@ class VerticalLine(BasePlot):
 
         self.ax.axvline(
             x=x,
+            color=color,
+            linestyle=linestyle,
+            linewidth=linewidth,
+            label=label,
+            **kwargs,
+        )
+        if label is not None:
+            self.ax.legend()
+
+        return self.fig, self.ax
+
+
+class HorizontalLine(BasePlot):
+    """Mark one value on the y-axis — a baseline, zero more often than not.
+
+    `VerticalLine` marks a moment; this marks a level. A residual plot without
+    a zero line asks the reader to eyeball where "no effect" sits, so the
+    defaults here are a quiet reference line rather than a crimson marker.
+    """
+
+    def build(
+        self,
+        y: float,
+        label: Optional[str] = None,
+        color: str = "grey",
+        linestyle: str = "-",
+        linewidth: float = 1,
+        **kwargs,
+    ):
+        """
+        Draw a horizontal line at `y`.
+
+        Parameters:
+        -----------
+        y : float
+            Position on the y-axis.
+        label : Optional[str]
+            Legend label. The line is drawn without a legend when this is None.
+        color : str
+            Line colour.
+        linestyle : str
+            Line style.
+        linewidth : float
+            Line width.
+        **kwargs : Additional keyword arguments passed to `ax.axhline`.
+
+        Returns:
+        --------
+        fig, ax : The created figure and axes.
+        """
+        if self.ax is None:
+            raise ValueError("No axes available for plotting")
+
+        self.ax.axhline(
+            y=y,
             color=color,
             linestyle=linestyle,
             linewidth=linewidth,
@@ -477,6 +555,7 @@ class BarPlot(BasePlot):
         x: str,
         y: str,
         order: Optional[List[str]] = None,
+        xtick_rotation: Optional[float] = None,
         **kwargs,
     ):
         """
@@ -494,6 +573,8 @@ class BarPlot(BasePlot):
         order : Optional[List[str]]
             Category order. Seaborn's own order (first appearance) is used
             when this is None.
+        xtick_rotation : Optional[float]
+            Rotate the category labels, for names too long to sit flat.
         **kwargs : Additional keyword arguments passed to `sns.barplot`,
             including `estimator`, `errorbar`, `color` and `hue`.
 
@@ -502,6 +583,8 @@ class BarPlot(BasePlot):
         fig, ax : The created figure and axes.
         """
         sns.barplot(data=data, x=x, y=y, order=order, ax=self.ax, **kwargs)
+        if xtick_rotation is not None and self.ax is not None:
+            self.ax.tick_params(axis="x", rotation=xtick_rotation)
         return self.fig, self.ax
 
 
