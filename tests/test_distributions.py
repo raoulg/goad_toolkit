@@ -226,16 +226,17 @@ def test_bernoulli_declines_data_outside_its_support():
     assert "support" in bernoulli.message
 
 
-def test_fits_are_reproducible_by_default():
-    # stats.fit searches with differential evolution, which is stochastic; the
-    # fitter seeds it so two runs on the same data agree to the last digit.
+def test_seeded_fits_are_reproducible():
+    # stats.fit searches with differential evolution, which is stochastic; an
+    # explicit seed makes two runs on the same data agree to the last digit.
+    # The default stays unseeded: reproducibility is asked for, not assumed.
     rng = np.random.default_rng(9)
     data = stats.expon(scale=150).rvs(2000, random_state=rng)
 
-    first = DistributionFitter().fit_distribution("exponential", data)
-    second = DistributionFitter().fit_distribution("exponential", data)
+    first = DistributionFitter(seed=42).fit_distribution("exponential", data)
+    second = DistributionFitter(seed=42).fit_distribution("exponential", data)
 
     assert isinstance(first, FitResult)
     assert isinstance(second, FitResult)
     assert tuple(first.params) == tuple(second.params)
-    assert DistributionFitter(seed=None).seed is None
+    assert DistributionFitter().seed is None

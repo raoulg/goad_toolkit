@@ -217,7 +217,8 @@ Result = Union[FitResult, FailedFit]
 
 ```python
 class DistributionFitter:
-    def __init__(self, registry: Optional[DistributionRegistry] = None)
+    def __init__(self, registry: Optional[DistributionRegistry] = None,
+                 seed: Optional[int] = None)          # seed: reproducible stats.fit search
 
     registry: list[str]                                     # property, the names
 

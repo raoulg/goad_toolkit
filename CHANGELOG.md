@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.16.1
+
+### Changed
+
+- `DistributionFitter` is unseeded again by default. The optimizer behind `stats.fit` is
+  stochastic on purpose, and a fit that only lands somewhere because of one particular seed is
+  worth knowing about; reproducibility is something to ask for explicitly, with
+  `DistributionFitter(seed=42)`, when the numbers must repeat.
+
 ## 0.2.16
 
 ### Added

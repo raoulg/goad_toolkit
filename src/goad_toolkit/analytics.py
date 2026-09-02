@@ -78,17 +78,19 @@ class DistributionFitter:
     """Class to fit distributions from a registry to data."""
 
     def __init__(
-        self, registry: Optional[DistributionRegistry] = None, seed: Optional[int] = 42
+        self, registry: Optional[DistributionRegistry] = None, seed: Optional[int] = None
     ) -> None:
         """Initialize with a distribution registry.
 
         Pass a registry to fit a custom set of families; a fresh registry with
         the shipped families is used otherwise.
 
-        `seed` fixes the optimizer: `stats.fit` searches the bounds with
-        differential evolution, which is stochastic, so without a seed the same
-        data can come back with slightly different parameters on every run.
-        Pass `None` to let scipy draw its own.
+        `stats.fit` searches the bounds with differential evolution, which is
+        stochastic: the same data can come back with slightly different
+        parameters on every run. Pass `seed` to fix the draw when the numbers
+        have to reproduce — a lesson, a report, a test. Left unset, the search
+        is as random as scipy makes it, and that is deliberate: a fit that only
+        lands somewhere because of one particular seed is worth knowing about.
         """
         self._registry = registry if registry is not None else DistributionRegistry()
         self.seed = seed

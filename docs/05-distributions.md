@@ -98,9 +98,11 @@ generous defaults, not truths. A family whose real shape parameter is above 10 c
 and the symptom is a fit that pins to the boundary rather than an error. If a fit looks
 suspiciously like a boundary value, that is why.
 
-**Fits are seeded.** `stats.fit` searches the bounds with differential evolution, a
-stochastic optimizer, so `DistributionFitter(seed=42)` fixes the draw and the same data gives
-the same parameters every run. The search is good, not exact: on a family with a closed-form
+**Fits are stochastic unless you say otherwise.** `stats.fit` searches the bounds with
+differential evolution, a stochastic optimizer, so the same data can give slightly different
+parameters on every run. Pass `DistributionFitter(seed=42)` when the numbers must repeat — a
+lesson, a report, a test — and leave it unset otherwise: a fit that only lands somewhere because
+of one particular seed is worth knowing about. The search is good, not exact: on a family with a closed-form
 maximum-likelihood estimate (the exponential's scale is the sample mean) it can land a percent
 or two off. Ranking families by likelihood is unaffected; quoting a parameter to four
 decimals is.
