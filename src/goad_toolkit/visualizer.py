@@ -233,12 +233,25 @@ class LinePlot(BasePlot):
     """Plot a line plot using seaborn.
 
     Seaborn drops rows with missing values before drawing, so a gap in the data
-    is connected straight through rather than left open. When absent data must
-    look absent — a reindexed series with `NaN` holes — draw with `ax.plot`,
-    which breaks the line at every `NaN`.
+    is connected straight through rather than left open, and it offers no switch
+    to keep them. `gaps=True` draws with matplotlib instead, which breaks the
+    line at every `NaN` — for when absent data must look absent, as with a
+    series reindexed to its full date range.
     """
 
-    def build(self, data: pd.DataFrame, **kwargs):
+    def build(self, data: pd.DataFrame, gaps: bool = False, **kwargs):
+        if gaps:
+            x = kwargs.pop("x", None)
+            y = kwargs.pop("y", None)
+            if y is None:
+                raise ValueError("LinePlot(gaps=True) needs y=<column>")
+            if self.ax is None:
+                raise ValueError("No axes available for plotting")
+            xs = data.index if x is None else data[x]
+            self.ax.plot(xs, data[y], **kwargs)
+            if kwargs.get("label") is not None:
+                self.ax.legend()
+            return self.fig, self.ax
         sns.lineplot(data=data, ax=self.ax, **kwargs)
         return self.fig, self.ax
 
@@ -1423,15 +1436,16 @@ class DistPlot(BasePlot):
         """
         x = self._estimate_x(distribution, samples, x_range)
 
-        # Calculate probability density
-        try:
+        if hasattr(distribution, "pdf"):
             y = distribution.pdf(x)
-        except AttributeError:
-            # If pdf not available, try pmf for discrete distributions
-            try:
-                y = distribution.pmf(x)
-            except (AttributeError, ValueError):
-                raise ValueError("Distribution must have either pdf or pmf method")
+        elif hasattr(distribution, "pmf"):
+            # A discrete family has mass only at integers, so the curve is drawn
+            # through the integers of the range rather than a fine linspace,
+            # where every non-integer x would read as zero probability.
+            x = np.arange(np.floor(x.min()), np.ceil(x.max()) + 1)
+            y = distribution.pmf(x)
+        else:
+            raise ValueError("Distribution must have either pdf or pmf method")
 
         if self.ax is None:
             raise ValueError("No axes available for plotting")

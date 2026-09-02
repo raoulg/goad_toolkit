@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from loguru import logger
-from scipy import stats
+from scipy import optimize, stats
 
 from goad_toolkit.distributions import DistributionRegistry
 
@@ -76,13 +77,26 @@ Result = Union[FitResult, FailedFit]
 class DistributionFitter:
     """Class to fit distributions from a registry to data."""
 
-    def __init__(self, registry: Optional[DistributionRegistry] = None) -> None:
+    def __init__(
+        self, registry: Optional[DistributionRegistry] = None, seed: Optional[int] = 42
+    ) -> None:
         """Initialize with a distribution registry.
 
         Pass a registry to fit a custom set of families; a fresh registry with
         the shipped families is used otherwise.
+
+        `seed` fixes the optimizer: `stats.fit` searches the bounds with
+        differential evolution, which is stochastic, so without a seed the same
+        data can come back with slightly different parameters on every run.
+        Pass `None` to let scipy draw its own.
         """
         self._registry = registry if registry is not None else DistributionRegistry()
+        self.seed = seed
+        self._optimizer = (
+            optimize.differential_evolution
+            if seed is None
+            else partial(optimize.differential_evolution, seed=seed)
+        )
 
     @property
     def registry(self) -> list[str]:
@@ -116,6 +130,14 @@ class DistributionFitter:
             else:
                 return [scale_bound]
         elif dist_obj.num_params == 2:
+            if dist_obj.is_discrete:
+                # Two-parameter discrete families (binomial, nbinom) take a count
+                # `n` and a probability `p`, not a location and a scale. `n` is a
+                # trial count for binomial and a dispersion for nbinom, so it gets
+                # a count-scale range; `p` has to stay inside (0, 1).
+                count_bound = (0.01, max(10_000.0, float(data_max) * 10))
+                probability_bound = (1e-6, 1.0)
+                return [count_bound, probability_bound]
             return [loc_bound, scale_bound]
         elif dist_obj.num_params == 3:
             return [shape_bound, loc_bound, scale_bound]
@@ -173,12 +195,28 @@ class DistributionFitter:
         try:
             dist_obj = self._registry.get_distribution(dist_name)
 
+            if dist_obj.is_discrete:
+                # A discrete family's support does not depend on its parameters
+                # (bernoulli lives on {0, 1}; poisson, binomial and nbinom on the
+                # non-negative integers), so data outside it is a mismatch to
+                # report, not an optimisation to attempt.
+                low, high = dist_obj.dist.a, dist_obj.dist.b
+                if np.min(data) < low or np.max(data) > high:
+                    message = f"values outside the family's support [{low}, {high}]"
+                    return FailedFit(distribution=dist_name, message=message)
+
             # Get parameter bounds
             bounds = self._get_bounds(data, dist_obj)
             # logger.info(f"Bounds for {dist_name}: {bounds}")
 
             # Perform the fit
-            result = stats.fit(dist_obj.dist, data, method=method, bounds=tuple(bounds))
+            result = stats.fit(
+                dist_obj.dist,
+                data,
+                method=method,
+                bounds=tuple(bounds),
+                optimizer=self._optimizer,
+            )
 
             # If fit was not successful, return failure
             if not result.success:

@@ -209,7 +209,7 @@ step 3.
 | `FacetPlot` | any plot, once per level of a column | small multiples in one call; overrides `plot` |
 | `ACFPlot` | `acf` as vertical lines with a confidence band | see [Five families §4.2](04-five-families.md) |
 | `HistogramPlot` | `sns.histplot`, `stat="density"` | density so a pdf can be overlaid |
-| `DistPlot` | a scipy distribution's pdf or pmf | estimates its own x-range from `ppf` |
+| `DistPlot` | a scipy distribution's pdf, or pmf at the integers | estimates its own x-range from `ppf` |
 | `PlotFits` | histogram + fitted pdf, one panel per fit | see [Distributions](05-distributions.md) |
 | `QQPlot` | sample quantiles vs. a distribution's theoretical quantiles | the tails, not the bulk — see [Distributions §5.5](05-distributions.md) |
 | `ECDFPlot` | one or two empirical CDFs, bin-free | the right tool for comparing two samples |

@@ -193,3 +193,49 @@ def test_fit_table_ranks_by_loglikelihood_and_sorts_failures_last():
     assert table.loc[0, "best_ks"]
     assert table.loc[2, "message"] == "optimizer did not converge"
     assert np.isnan(table.loc[2, "log_likelihood"])
+
+
+def test_nbinom_fits_overdispersed_counts_at_any_scale():
+    # Two-parameter discrete families take (n, p), not (loc, scale). With the
+    # continuous bounds template, `p` was bounded by a scale range built from the
+    # data's standard deviation, which for counts in the hundreds lies entirely
+    # above 1 and makes the fit fail with "no values for `p`".
+    rng = np.random.default_rng(11)
+    data = stats.nbinom(n=2, p=0.0035).rvs(300, random_state=rng).astype(float)
+
+    results = DistributionFitter().fit(data, discrete=True)
+    by_name = {r.distribution: r for r in results}
+
+    nbinom = by_name["nbinom"]
+    assert isinstance(nbinom, FitResult), getattr(nbinom, "message", None)
+    assert nbinom.frozen_dist.mean() == pytest.approx(data.mean(), rel=0.15)
+    assert nbinom.log_likelihood > by_name["poisson"].log_likelihood
+    assert isinstance(by_name["binomial"], FitResult)
+
+
+def test_bernoulli_declines_data_outside_its_support():
+    # Asking bernoulli to fit counts in the hundreds is a family mismatch, and
+    # the result should say so rather than surface scipy's bounds complaint.
+    rng = np.random.default_rng(5)
+    data = stats.poisson(mu=300).rvs(200, random_state=rng).astype(float)
+
+    results = DistributionFitter().fit(data, discrete=True)
+    bernoulli = next(r for r in results if r.distribution == "bernoulli")
+
+    assert isinstance(bernoulli, FailedFit)
+    assert "support" in bernoulli.message
+
+
+def test_fits_are_reproducible_by_default():
+    # stats.fit searches with differential evolution, which is stochastic; the
+    # fitter seeds it so two runs on the same data agree to the last digit.
+    rng = np.random.default_rng(9)
+    data = stats.expon(scale=150).rvs(2000, random_state=rng)
+
+    first = DistributionFitter().fit_distribution("exponential", data)
+    second = DistributionFitter().fit_distribution("exponential", data)
+
+    assert isinstance(first, FitResult)
+    assert isinstance(second, FitResult)
+    assert tuple(first.params) == tuple(second.params)
+    assert DistributionFitter(seed=None).seed is None

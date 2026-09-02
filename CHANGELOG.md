@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.2.16
+
+### Added
+
+- `DistributionFitter(seed=42)`: the optimizer behind `stats.fit` is differential evolution,
+  which is stochastic, so fits now run seeded and return the same parameters on every run.
+  `seed=None` restores scipy's own draw.
+- `LinePlot(gaps=True)`: draw with matplotlib so a `NaN` breaks the line. seaborn drops
+  missing rows before drawing and has no switch to keep them, which silently reconnects a
+  reindexed series across the very hole the reindexing was meant to show.
+
+### Fixed
+
+- `DistributionFitter` fits `nbinom` and `binomial` at any count scale. Two-parameter
+  discrete families were handed the `(loc, scale)` bounds template, which bounded `p` by a
+  range built from the data's standard deviation — for counts in the hundreds that range
+  lies entirely above 1, and scipy reported "no values for `p`". They now get a count
+  range for `n` and `(0, 1)` for `p`.
+- `DistPlot` draws a discrete family's `pmf` through the integers of its range instead of
+  a fine linspace, where every non-integer x read as zero probability.
+- A discrete family whose support cannot contain the data (`bernoulli` asked to fit
+  counts) returns a `FailedFit` that says so, instead of a warning about scipy's bounds.
+
 ## 0.2.15
 
 ### Added

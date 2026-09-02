@@ -21,6 +21,7 @@ from goad_toolkit.visualizer import (  # noqa: E402
     ComparePlotDate,
     CorrelationHeatmap,
     DecomposePlot,
+    DistPlot,
     ECDFPlot,
     FacetPlot,
     GroupedBarPlot,
@@ -979,3 +980,24 @@ def test_facet_plot_rejects_a_missing_column(facetable):
         FacetPlot(PlotSettings()).plot(
             inner=LinePlot(PlotSettings()), data=facetable, by="nope", x="x", y="y"
         )
+
+
+def test_lineplot_gaps_breaks_the_line_at_nan():
+    # seaborn drops NA rows before drawing and reconnects across the hole;
+    # gaps=True hands the frame to matplotlib, which leaves the NaN in the line.
+    frame = pd.DataFrame({"t": range(6), "v": [1.0, 2.0, np.nan, np.nan, 5.0, 6.0]})
+
+    _, ax_seaborn = LinePlot(PlotSettings()).plot(data=frame, x="t", y="v")
+    _, ax_gaps = LinePlot(PlotSettings()).plot(data=frame, x="t", y="v", gaps=True)
+
+    assert len(ax_seaborn.lines[0].get_xdata()) == 4
+    assert np.isnan(np.asarray(ax_gaps.lines[0].get_ydata(), dtype=float)).sum() == 2
+
+
+def test_distplot_draws_a_discrete_family_at_integers():
+    _, ax = DistPlot(PlotSettings()).plot(distribution=stats.poisson(mu=4))
+
+    xs = ax.lines[0].get_xdata()
+    ys = ax.lines[0].get_ydata()
+    assert np.all(np.equal(np.mod(xs, 1), 0))
+    assert ys.max() == pytest.approx(stats.poisson(mu=4).pmf(4), rel=1e-6)

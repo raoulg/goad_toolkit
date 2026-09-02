@@ -91,10 +91,19 @@ A `FitResult` carries:
 
 **Bounds.** `stats.fit` needs bounds, and the fitter derives them from the data: location
 bounded by the data range extended either side, scale from a fraction of the standard
-deviation up to twenty times it, shape parameters in `(0.01, 10)`. These are generous
-defaults, not truths. A family whose real shape parameter is above 10 cannot be fitted here,
+deviation up to twenty times it, shape parameters in `(0.01, 10)`. Two-parameter discrete
+families (`binomial`, `nbinom`) are the exception: their parameters are a count `n` and a
+probability `p`, so `n` gets a count-scale range and `p` stays inside `(0, 1)`. These are
+generous defaults, not truths. A family whose real shape parameter is above 10 cannot be fitted here,
 and the symptom is a fit that pins to the boundary rather than an error. If a fit looks
 suspiciously like a boundary value, that is why.
+
+**Fits are seeded.** `stats.fit` searches the bounds with differential evolution, a
+stochastic optimizer, so `DistributionFitter(seed=42)` fixes the draw and the same data gives
+the same parameters every run. The search is good, not exact: on a family with a closed-form
+maximum-likelihood estimate (the exponential's scale is the sample mean) it can land a percent
+or two off. Ranking families by likelihood is unaffected; quoting a parameter to four
+decimals is.
 
 **`discrete` is your call, not the fitter's.** Counts (messages per day) are discrete;
 durations (seconds between messages) are continuous. Getting it wrong does not error — it

@@ -353,7 +353,7 @@ class BasePlot(ABC):
 
 | Class | `build` signature (after `self`) |
 |---|---|
-| `LinePlot` | `data, **kwargs` → `sns.lineplot` |
+| `LinePlot` | `data, gaps=False, **kwargs` → `sns.lineplot`; `gaps=True` draws with `ax.plot` so a `NaN` breaks the line |
 | `ComparePlot` | `data, x, y1, y2, **kwargs` |
 | `VerticalDate` | `date: str, label: str` |
 | `VerticalLine` | `x: float, label=None, color="crimson", linestyle="--", linewidth=2, **kwargs` |
@@ -402,8 +402,8 @@ axis it was handed.
 results — and so does `FacetPlot`, whose panel count comes from the data: one panel per
 level of `by`, each drawn by `inner` with the same kwargs, titles defaulting to the level
 names. `HistogramPlot` defaults to `stat="density"` so a pdf overlays correctly (pass
-`stat="count"` for plain counts); `DistPlot` takes a **frozen** distribution and falls back
-to `pmf` when there is no `pdf`. `ACFPlot` draws each lag as a vertical line rather than a
+`stat="count"` for plain counts); `DistPlot` takes a **frozen** distribution and, for a
+discrete family, draws its `pmf` through the integers of the range. `ACFPlot` draws each lag as a vertical line rather than a
 bar — line width is in points, so hundreds of lags cannot alias into sub-pixel stripes.
 
 `NullPlot` composes `HistogramPlot` and `VerticalLine`: grey cloud, coloured line. It writes
