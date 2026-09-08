@@ -122,13 +122,16 @@ You pin a version with `GOAD_REF` — a git ref (branch, tag, or commit). That o
 selects both the script (in the URL) and the docs it fetches (inside the script), so a whole
 cohort runs exactly the same thing and the two cannot drift apart.
 
-> **Note:** the docs and this server land in **v0.2.2**. 
-> You can also point `GOAD_REF` to a branch or work from a local clone (see below).
+Use **`stable`**. It is a tag that moves to the newest release, so a config that names it
+never goes out of date, and nothing on `main` reaches you before it has been released. The
+[releases](https://github.com/raoulg/goad_toolkit/tags) also carry versioned tags such as
+`v0.2.16.1` for anyone who needs to freeze one. You can also point `GOAD_REF` to a branch or
+work from a local clone (see below).
 
 ### Claude Code
 
 ```bash
-claude mcp add goad -e GOAD_REF=v0.2.2 -- \
+claude mcp add goad -e GOAD_REF=stable -- \
   sh -c 'uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py'
 ```
 
@@ -142,7 +145,7 @@ Add to `.cursor/mcp.json` (per-project) or `~/.cursor/mcp.json` (global):
     "goad": {
       "command": "sh",
       "args": ["-c", "uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py"],
-      "env": { "GOAD_REF": "v0.2.2" }
+      "env": { "GOAD_REF": "stable" }
     }
   }
 }
@@ -156,7 +159,7 @@ Add to `~/.codex/config.toml`:
 [mcp_servers.goad]
 command = "sh"
 args = ["-c", "uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py"]
-env = { GOAD_REF = "v0.2.2" }
+env = { GOAD_REF = "stable" }
 ```
 
 ### Claude Desktop
@@ -170,7 +173,7 @@ app:
     "goad": {
       "command": "sh",
       "args": ["-c", "uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py"],
-      "env": { "GOAD_REF": "v0.2.2" }
+      "env": { "GOAD_REF": "stable" }
     }
   }
 }
@@ -192,26 +195,40 @@ claude mcp add goad -- uv run --no-project /path/to/goad_toolkit/goad_mcp.py
 ## Tracking the bleeding edge instead
 
 Set `GOAD_REF=main` to always run whatever is on `main`, including chapters or checklist
-changes not in a release yet. Fine for your own use; for a cohort of students, pin to a tag
-instead so everyone runs the exact same docs during an assignment.
+changes not in a release yet. Fine for your own use; for a cohort of students, `stable` (or a
+versioned tag) keeps everyone on released docs during an assignment.
 
 ## Update to a new version
 
-Pick the newest tag from the [releases](https://github.com/raoulg/goad_toolkit/tags), then
-point `GOAD_REF` at it. Because the ref lives in the URL, switching it fetches the new script
-automatically — no cache clearing needed.
+With `GOAD_REF=stable`, restart your assistant: the server is fetched fresh on every launch,
+and the tag already points at the newest release.
 
-**Claude Code** — re-running `add` errors if the server already exists, so remove first, then
-add with the new tag:
+If you froze a versioned tag instead, pick the target from the
+[releases](https://github.com/raoulg/goad_toolkit/tags) and change the `GOAD_REF` value in
+your config. In Claude Code, re-running `add` errors if the server already exists, so remove
+first:
 
 ```bash
 claude mcp remove goad -s user
-claude mcp add goad -s user -e GOAD_REF=v0.2.2 -- \
+claude mcp add goad -s user -e GOAD_REF=v0.2.16.1 -- \
   sh -c 'uv run --no-project https://raw.githubusercontent.com/raoulg/goad_toolkit/$GOAD_REF/goad_mcp.py'
 ```
 
 **Cursor / Codex / Claude Desktop** — edit the `GOAD_REF` value in the config, then restart
 your assistant so it relaunches the server.
+
+## Releasing (maintainer)
+
+A release is a versioned tag plus moving `stable` onto it, alongside the PyPI publish:
+
+```bash
+git tag v0.2.17
+git tag -f stable v0.2.17
+git push origin v0.2.17
+git push -f origin stable
+```
+
+Everyone on `stable` gets it the next time their assistant starts.
 
 ## Companion servers
 
