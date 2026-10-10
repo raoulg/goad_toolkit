@@ -311,8 +311,8 @@ See [Plot composition](03-plot-composition.md).
 class PlotSettings:
     figsize: Tuple[int, int] = (10, 6)
     title: str = "Plot"
-    xlabel: Optional[str] = None
-    ylabel: Optional[str] = None
+    xlabel: Optional[str] = None                         # None: column name; "": hidden
+    ylabel: Optional[str] = None                         # None: column name; "": hidden
     legend_title: Optional[str] = None
     grid: bool = False
     grid_alpha: Optional[float] = None
@@ -472,12 +472,15 @@ of `likelihood`, `ks`, `combined`; `--method` is passed to `scipy.stats.fit`.
 - `ACFPlot` raises `ValueError` if the data contains NaNs, rather than passing them through.
   `statsmodels.tsa.stattools.acf` does not raise on missing values — it silently returns an
   all-NaN result — so a decomposition's residual needs `.dropna()` before it reaches `ACFPlot`.
-- `PlotSettings.xlabel`/`ylabel` default to `None`, not an empty string. `create_figure`
-  skips setting an axis label entirely when it is `None`, so an unset label falls through to
-  whatever the plotting call writes in — a seaborn function called with `x=`/`y=` as column
-  names labels the axis from those names, but only when the label is still empty. Set
-  `xlabel=`/`ylabel=` explicitly and `create_figure` runs first, so that value is what a
-  reader sees regardless of what seaborn would otherwise write in.
+- `PlotSettings.xlabel`/`ylabel` default to `None`, not an empty string, and the two mean
+  different things. `create_figure` skips setting an axis label entirely when it is `None`,
+  so an unset label falls through to whatever the plotting call writes in — a seaborn
+  function called with `x=`/`y=` as column names labels the axis from those names, but only
+  when the label is still empty. Any string, `""` included, is explicit: `plot` writes it
+  back after `build` and after every layer drawn on that axis with `plot_on`/`plot_on_axes`,
+  so that value is what a reader sees regardless of what seaborn writes in (`sns.heatmap`
+  overwrites both labels even when they are set). `xlabel=""` hides the label; it does not
+  fall back to the column name.
 - `binomial` and `nbinom` fit two shape parameters (`n`, `p`) from the sample mean and
   variance alone. If `n` is not known independently, it is not identifiable from the data —
   many `(n, p)` pairs with the same `n·p` fit about as well, so a fitted `n` should be treated

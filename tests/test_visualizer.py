@@ -899,6 +899,60 @@ def test_plot_call_overrides_axis_labels(data):
     assert ax.get_ylabel() == "how many"
 
 
+def test_an_empty_xlabel_hides_the_column_name(two_categories):
+    fig, ax = GroupedBarPlot(PlotSettings(xlabel="", ylabel="mass (g)")).plot(
+        data=two_categories, x="species", y="mass", hue="island"
+    )
+
+    assert ax.get_xlabel() == ""
+    assert ax.get_ylabel() == "mass (g)"
+
+
+def test_an_empty_ylabel_hides_the_column_name(two_categories):
+    fig, ax = GroupedBarPlot(PlotSettings(xlabel="penguin", ylabel="")).plot(
+        data=two_categories, x="species", y="mass", hue="island"
+    )
+
+    assert ax.get_xlabel() == "penguin"
+    assert ax.get_ylabel() == ""
+
+
+def test_an_unset_label_comes_from_the_column_name(two_categories):
+    fig, ax = GroupedBarPlot(PlotSettings()).plot(
+        data=two_categories, x="species", y="mass", hue="island"
+    )
+
+    assert ax.get_xlabel() == "species"
+    assert ax.get_ylabel() == "mass"
+
+
+def test_an_empty_label_survives_a_seaborn_layer(related):
+    host = ScatterPlot(PlotSettings(xlabel=""))
+    fig, ax = host.plot(data=related, x="x", y="y")
+
+    host.plot_on(LinePlot(PlotSettings()), data=related, x="x", y="curved")
+
+    assert ax.get_xlabel() == ""
+    assert ax.get_ylabel() == "y"
+
+
+def test_an_empty_label_hides_it_on_every_facet(facetable):
+    fig, axes = FacetPlot(PlotSettings(xlabel="")).plot(
+        inner=LinePlot(PlotSettings()), data=facetable, by="group", x="x", y="y"
+    )
+
+    assert [ax.get_xlabel() for ax in axes] == ["", "", ""]
+
+
+def test_an_explicit_label_wins_over_the_heatmap_axis_names(two_categories):
+    fig, ax = HeatmapPlot(PlotSettings(xlabel="where", ylabel="")).plot(
+        data=two_categories, index="species", columns="island", values="mass"
+    )
+
+    assert ax.get_xlabel() == "where"
+    assert ax.get_ylabel() == ""
+
+
 def test_plot_call_override_reaches_a_layer_with_an_existing_figure(data):
     settings = PlotSettings(title="Host title")
     host = BarPlot(settings)

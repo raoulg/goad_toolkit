@@ -60,10 +60,13 @@ class PlotSettings:
 
 `xlabel`/`ylabel` left as `None` are not blank — `create_figure` skips setting them at all,
 which leaves whatever the plotting call itself writes in (seaborn labels an axis from the
-column name whenever the label is still empty). Only an explicit `xlabel=`/`ylabel=` in
-`PlotSettings` pre-empts that. So `PlotSettings(title="Body mass by species")` gets you
+column name whenever the label is still empty). An explicit `xlabel=`/`ylabel=` in
+`PlotSettings` wins over that: `plot` writes it back after the plotting call, and again after
+every layer drawn on that axis. So `PlotSettings(title="Body mass by species")` gets you
 correct axis labels for free from the column names you passed to `x=`/`y=`; reach for
-`xlabel=`/`ylabel=` only when the column name is not what you want a reader to see.
+`xlabel=`/`ylabel=` only when the column name is not what you want a reader to see. An
+empty string counts as explicit: `xlabel=""` hides the label, for an axis whose tick labels
+already say what it is.
 
 For a one-off change, override in the `plot` call itself: any keyword that names a
 `PlotSettings` field is applied to that call and that call only, leaving the shared
@@ -84,8 +87,9 @@ axis, each gets the corresponding entry. `PlotFits` uses this to label each fitt
 distribution with its own test statistics. `subplot_xlabels` and `subplot_ylabels` are the
 same idea for axis labels — panels showing different quantities get their own labels from
 the settings, not from `ax.set_ylabel` calls after the fact. On the panels they cover, the
-lists win over the figure-wide `xlabel`/`ylabel`. `xtick_rotation` rotates the x tick
-labels on every axis, for the date axes and long category names that overlap when flat.
+lists win over the figure-wide `xlabel`/`ylabel`, and an `""` entry hides that panel's
+label. `xtick_rotation` rotates the x tick labels on every axis, for the date axes and long
+category names that overlap when flat.
 `sharex`/`sharey` make a multi-panel grid share one scale — without them each panel
 autoscales to its own data, and two shapes that look alike may sit on very different
 axes.

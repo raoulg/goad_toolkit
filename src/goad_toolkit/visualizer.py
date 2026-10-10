@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields, replace
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.category as mpc
 import matplotlib.dates as mdates
@@ -24,8 +24,8 @@ class PlotSettings:
 
     figsize: Tuple[int, int] = (10, 6)
     title: str = "Plot"
-    xlabel: Optional[str] = None
-    ylabel: Optional[str] = None
+    xlabel: Optional[str] = None  # None: the plotting call labels it; "": hidden
+    ylabel: Optional[str] = None  # None: the plotting call labels it; "": hidden
     legend_title: Optional[str] = None
     grid: bool = False  # Added grid option
     grid_alpha: Optional[float] = None  # Grid transparency
@@ -58,6 +58,10 @@ class BasePlot(ABC):
         self.settings = settings
         self.fig = None
         self.ax = None
+        # The explicit (xlabel, ylabel) per axis, None where the plotting call may
+        # label it. Shared with every layer drawn on this figure, so whichever
+        # plot draws last puts them back.
+        self._labels: Dict[Axes, Tuple[Optional[str], Optional[str]]] = {}
 
     def plot(self, n_plots: Optional[int] = None, *args, **kwargs):
         """Create the figure if needed, then hand the drawing to `build`.
@@ -74,6 +78,11 @@ class BasePlot(ABC):
         `plot_on_axes` — only the axis-level fields (`title`, `xlabel`,
         `ylabel`, `xtick_rotation`) can still take effect; the rest shaped
         the figure at creation time.
+
+        An explicit `xlabel`/`ylabel` is put back after `build`, because
+        seaborn writes the column name into any label that is still empty
+        (and `sns.heatmap` into every label). So `""` hides a label, and
+        `None` leaves it to the plotting call.
         """
         overrides = {
             f.name: kwargs.pop(f.name)
@@ -87,16 +96,16 @@ class BasePlot(ABC):
         elif overrides and self.ax is not None:
             if "title" in overrides:
                 self.ax.set_title(self.settings.title)
-            if "xlabel" in overrides and self.settings.xlabel is not None:
-                self.ax.set_xlabel(self.settings.xlabel)
-            if "ylabel" in overrides and self.settings.ylabel is not None:
-                self.ax.set_ylabel(self.settings.ylabel)
+            self._pin_labels(self.ax, overrides.get("xlabel"), overrides.get("ylabel"))
             if (
                 "xtick_rotation" in overrides
                 and self.settings.xtick_rotation is not None
             ):
                 self.ax.tick_params(axis="x", rotation=self.settings.xtick_rotation)
-        return self.build(*args, **kwargs)
+        drawn = self.build(*args, **kwargs)
+        if self.ax is not None:
+            self._apply_labels(self.ax)
+        return drawn
 
     def create_figure(self, n_plots: Optional[int] = None):
         """Create a figure and configure it based on settings.
@@ -134,22 +143,21 @@ class BasePlot(ABC):
             self.ax = axes[0]
 
         # Apply common settings to all axes
+        self._labels = {}
         for i, ax in enumerate(axes):
             if ax.get_visible():
                 # None means "let the plotting call decide" -- seaborn fills the axis
-                # label in from the column name whenever the label is still empty, so
-                # only an explicit xlabel/ylabel should pre-empt that. The per-subplot
-                # lists win over the figure-wide label on the panels they cover.
+                # label in from the column name whenever the label is still empty.
+                # Anything else, "" included, is pinned and outlasts the plotting
+                # call. The per-subplot lists win over the figure-wide label on the
+                # panels they cover.
                 xlabel = self.settings.xlabel
                 if i < len(self.settings.subplot_xlabels):
                     xlabel = self.settings.subplot_xlabels[i]
-                if xlabel is not None:
-                    ax.set_xlabel(xlabel)
                 ylabel = self.settings.ylabel
                 if i < len(self.settings.subplot_ylabels):
                     ylabel = self.settings.subplot_ylabels[i]
-                if ylabel is not None:
-                    ax.set_ylabel(ylabel)
+                self._pin_labels(ax, xlabel, ylabel)
                 # Apply grid if requested
                 if self.settings.grid:
                     ax.grid(True, alpha=self.settings.grid_alpha)
@@ -188,9 +196,10 @@ class BasePlot(ABC):
         # Create an instance of the plot class with our settings
         # other_plot = plot_class(self.settings)
 
-        # Share our figure and axes
+        # Share our figure and axes, and the labels pinned on them
         other_plot.fig = self.fig
         other_plot.ax = self.ax
+        other_plot._labels = self._labels
 
         # Call the plot method with the provided arguments
         other_plot.plot(*args, **kwargs)
@@ -214,15 +223,35 @@ class BasePlot(ABC):
         The used plot instance (after plotting)
         """
 
-        # Share our figure but use the provided axis
+        # Share our figure and pinned labels, but use the provided axis
         other_plot.fig = self.fig
         other_plot.ax = ax
+        other_plot._labels = self._labels
 
         # Call the plot method with the provided arguments
         other_plot.plot(*args, **kwargs)
 
         # Return the plot in case further configuration is needed
         return other_plot
+
+    def _pin_labels(
+        self, ax: Axes, xlabel: Optional[str], ylabel: Optional[str]
+    ) -> None:
+        """Set and remember the explicit labels for `ax`; None keeps what was pinned."""
+        pinned_x, pinned_y = self._labels.get(ax, (None, None))
+        self._labels[ax] = (
+            pinned_x if xlabel is None else xlabel,
+            pinned_y if ylabel is None else ylabel,
+        )
+        self._apply_labels(ax)
+
+    def _apply_labels(self, ax: Axes) -> None:
+        """Write the pinned labels back onto `ax`, over whatever a plotting call wrote."""
+        xlabel, ylabel = self._labels.get(ax, (None, None))
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
 
     @abstractmethod
     def build(self, *args, **kwargs):
