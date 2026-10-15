@@ -6,6 +6,7 @@ from goad_toolkit.analytics import (
     DistributionFitter,
     FailedFit,
     FitResult,
+    FitResults,
     KSTestResult,
     fit_table,
 )
@@ -81,9 +82,8 @@ def test_fit_with_a_single_family_registry():
 
     results = DistributionFitter(registry).fit(data, discrete=False)
 
-    assert len(results) == 1
-    fit = results[0]
-    assert isinstance(fit, FitResult)
+    assert len(results.successes) == 1
+    fit = results.successes[0]
     assert fit.best_likelihood
     assert fit.params[0] == pytest.approx(3.0, abs=0.5)
 
@@ -102,8 +102,7 @@ def test_bernoulli_fits_a_small_p():
 
     results = DistributionFitter(registry).fit(data, discrete=True)
 
-    fit = results[0]
-    assert isinstance(fit, FitResult)
+    fit = results.successes[0]
     assert fit.params[0] == pytest.approx(0.05, abs=0.02)
 
 
@@ -117,7 +116,7 @@ def test_loglikelihood_is_finite_for_discrete_families():
 
     results = DistributionFitter(registry).fit(data, discrete=True)
 
-    successes = [r for r in results if isinstance(r, FitResult)]
+    successes = results.successes
     assert successes, "expected at least one discrete fit to succeed"
     for fit in successes:
         assert fit.log_likelihood is not None
@@ -162,29 +161,31 @@ def test_mark_best_fits_rejects_unknown_criterion():
 
 
 def test_fit_table_ranks_by_loglikelihood_and_sorts_failures_last():
-    results = [
-        FitResult(
-            distribution="worse",
-            dist_object=None,
-            params=(1.0, 2.0),
-            frozen_dist=None,
-            log_likelihood=-50.0,
-            kstest=KSTestResult(statistic=0.2, p_value=0.3),
-            best_likelihood=False,
-            best_ks=False,
-        ),
-        FailedFit(distribution="broken", message="optimizer did not converge"),
-        FitResult(
-            distribution="best",
-            dist_object=None,
-            params=(3.0,),
-            frozen_dist=None,
-            log_likelihood=-10.0,
-            kstest=KSTestResult(statistic=0.05, p_value=0.9),
-            best_likelihood=True,
-            best_ks=True,
-        ),
-    ]
+    results = FitResults(
+        successes=[
+            FitResult(
+                distribution="worse",
+                dist_object=None,
+                params=(1.0, 2.0),
+                frozen_dist=None,
+                log_likelihood=-50.0,
+                kstest=KSTestResult(statistic=0.2, p_value=0.3),
+                best_likelihood=False,
+                best_ks=False,
+            ),
+            FitResult(
+                distribution="best",
+                dist_object=None,
+                params=(3.0,),
+                frozen_dist=None,
+                log_likelihood=-10.0,
+                kstest=KSTestResult(statistic=0.05, p_value=0.9),
+                best_likelihood=True,
+                best_ks=True,
+            ),
+        ],
+        failures=[FailedFit(distribution="broken", message="optimizer did not converge")],
+    )
 
     table = fit_table(results)
 

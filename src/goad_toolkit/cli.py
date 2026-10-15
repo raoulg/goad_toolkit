@@ -6,7 +6,7 @@ from typing import List
 
 import numpy as np
 
-from goad_toolkit.analytics import DistributionFitter, FitResult, Result
+from goad_toolkit.analytics import CRITERIA, DistributionFitter, FitResults
 from goad_toolkit.filehandler import reader_for
 
 
@@ -28,7 +28,7 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--criterion",
         default="combined",
-        choices=["likelihood", "ks", "combined"],
+        choices=list(CRITERIA),
         help="which fits to mark as best (default: combined)",
     )
     parser.add_argument(
@@ -49,10 +49,10 @@ def load_column(file: Path, column: str) -> np.ndarray:
     return data[column].dropna().to_numpy()
 
 
-def format_results(results: List[Result]) -> str:
+def format_results(results: FitResults) -> str:
     """Render fits as a table, best log-likelihood first, failures last."""
-    successes = [fit for fit in results if isinstance(fit, FitResult)]
-    failures = [fit for fit in results if not isinstance(fit, FitResult)]
+    successes = list(results.successes)
+    failures = results.failures
     successes.sort(
         key=lambda fit: fit.log_likelihood
         if fit.log_likelihood is not None

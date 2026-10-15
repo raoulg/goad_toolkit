@@ -10,12 +10,11 @@ from goad_toolkit.visualizer import (
     PlotFits,
     FitPlotSettings,
 )
-from pathlib import Path
 import pandas as pd
 import numpy as np
 
 
-def preprocess():
+def preprocess() -> pd.DataFrame:
     logger.info("Start preprocessing data...")
     data_config = DataConfig()
     file_config = FileConfig()
@@ -26,32 +25,17 @@ def preprocess():
     return processed
 
 
-def check_path(filepath: Path):
-    parentdir = filepath.parent
-    if not parentdir.exists():
-        parentdir.mkdir(parents=True)
-        logger.info(f"Created directory {parentdir}")
-
-
-def save_fig(fig, imgpath):
-    assert fig is not None, "No figure was created"
-    check_path(Path(imgpath))
-    fig.savefig(imgpath)
-    logger.success(f"Z-Scores saved to {imgpath}")
-
-
-def viz_zscores(data):
+def viz_zscores(data: pd.DataFrame) -> None:
     plotsettings = PlotSettings(
         xlabel="date",
         ylabel="normalized values",
         title="Z-Scores of Deaths and Positive Tests",
     )
     compareplot = ComparePlot(plotsettings)
-    fig, _ = compareplot.plot(
+    compareplot.plot(
         data=data, x="date", y1="deaths_shifted_zscore", y2="positivetests_zscore"
     )
-    imgpath = "data/result/zscores.png"
-    save_fig(fig, imgpath)
+    logger.success(f"Saved {compareplot.save('data/result/zscores.png')}")
 
 
 def model(data: "pd.DataFrame") -> "pd.DataFrame":
@@ -70,22 +54,19 @@ def model(data: "pd.DataFrame") -> "pd.DataFrame":
     return data
 
 
-def viz_model(data):
+def viz_model(data: pd.DataFrame) -> None:
     plotsettings = PlotSettings(xlabel="date", ylabel="deaths", title="Covid-19 data")
-    fig, _ = ComparePlot(plotsettings).plot(
-        data=data, x="date", y1="deaths_shifted", y2="Predicted deaths"
-    )
-
-    imgpath = "data/result/linear_results.png"
-    save_fig(fig, imgpath)
+    compareplot = ComparePlot(plotsettings)
+    compareplot.plot(data=data, x="date", y1="deaths_shifted", y2="Predicted deaths")
+    logger.success(f"Saved {compareplot.save('data/result/linear_results.png')}")
 
 
-def viz_residual(data):
+def viz_residual(data: pd.DataFrame) -> None:
     settings = PlotSettings(
         figsize=(12, 6), title="Residual Plot", xlabel="dates", ylabel="error"
     )
     resplot = ResidualPlot(settings)
-    fig, _ = resplot.plot(
+    resplot.plot(
         data=data,
         x="date",
         y="residual",
@@ -93,13 +74,13 @@ def viz_residual(data):
         datelabel="Vaccination Started",
         interval=1,
     )
-    imgpath = "data/result/residuals.png"
-    save_fig(fig, imgpath)
+    logger.success(f"Saved {resplot.save('data/result/residuals.png')}")
 
 
-def viz_distribution_fit(data):
+def viz_distribution_fit(data: pd.DataFrame) -> None:
     fitter = DistributionFitter()
-    fits = fitter.fit(data["residual"], discrete=False)
+    residuals = data["residual"].to_numpy()
+    fits = fitter.fit(residuals, discrete=False)
     best = fitter.best(fits)
     logger.success(f"Best fit: {best}")
     settings = PlotSettings(
@@ -107,14 +88,11 @@ def viz_distribution_fit(data):
     )
     fitplotsettings = FitPlotSettings(bins=30, max_fits=3)
     fitplotter = PlotFits(settings)
-    fig = fitplotter.plot(
-        data=data["residual"], fit_results=fits, fitplotsettings=fitplotsettings
-    )
-    imgpath = "data/result/distribution_fit.png"
-    save_fig(fig, imgpath)
+    fitplotter.plot(data=residuals, fit_results=fits, fitplotsettings=fitplotsettings)
+    logger.success(f"Saved {fitplotter.save('data/result/distribution_fit.png')}")
 
 
-def main():
+def main() -> None:
     data = preprocess()
     viz_zscores(data)
     data = model(data)

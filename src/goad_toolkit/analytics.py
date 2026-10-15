@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -72,6 +72,36 @@ class FailedFit:
 
 # Type alias for either success or failure
 Result = Union[FitResult, FailedFit]
+
+
+@dataclass
+class FitResults:
+    """A `fit` run's results, already split into what fitted and what didn't."""
+
+    successes: List[FitResult]
+    failures: List[FailedFit]
+
+    def __iter__(self) -> Iterator[Result]:
+        yield from self.successes
+        yield from self.failures
+
+    def __len__(self) -> int:
+        return len(self.successes) + len(self.failures)
+
+
+# What each `criterion` means: which best-fit flag(s) it marks or filters on.
+CRITERIA: dict[str, tuple[bool, bool]] = {
+    "likelihood": (True, False),
+    "ks": (False, True),
+    "combined": (True, True),
+}
+
+
+def _validate_criterion(criterion: str) -> tuple[bool, bool]:
+    try:
+        return CRITERIA[criterion]
+    except KeyError:
+        raise ValueError(f"Unknown criterion '{criterion}'") from None
 
 
 class DistributionFitter:
@@ -250,17 +280,21 @@ class DistributionFitter:
                 distribution=dist_name, message=f"Fitting failed: {str(e)}"
             )
 
-    def _mark_best_fits(self, fits: List[Result], criterion: str) -> List[Result]:
+    def _mark_best_fits(
+        self, fits: List[FitResult], criterion: str
+    ) -> List[FitResult]:
         """
-        Mark the best fits in a list of fit results.
+        Mark the best fits among already-successful results.
 
         Args:
-            fits: List of fit results to analyze
-            criterion: Selection criterion ('likelihood', 'ks', or 'combined')
+            fits: Successful fit results to analyze (no `FailedFit` entries)
+            criterion: Selection criterion, see `CRITERIA`
 
         Returns:
-            The same list with best_likelihood and best_ks attributes updated for successful fits
+            The same list with best_likelihood and best_ks attributes updated
         """
+        mark_likelihood, mark_ks = _validate_criterion(criterion)
+
         # Find best likelihood fit
         best_likelihood_value = float("-inf")
         best_likelihood_fit = None
@@ -269,45 +303,31 @@ class DistributionFitter:
         best_ks_value = 0
         best_ks_fit = None
 
-        # Find the best fits without creating a filtered list
         for fit in fits:
-            if isinstance(fit, FitResult):
-                # Check for best likelihood
-                fit_likelihood = (
-                    fit.log_likelihood
-                    if fit.log_likelihood is not None
-                    else float("-inf")
-                )
-                if fit_likelihood > best_likelihood_value:
-                    best_likelihood_value = fit_likelihood
-                    best_likelihood_fit = fit
+            fit_likelihood = (
+                fit.log_likelihood if fit.log_likelihood is not None else float("-inf")
+            )
+            if fit_likelihood > best_likelihood_value:
+                best_likelihood_value = fit_likelihood
+                best_likelihood_fit = fit
 
-                # Check for best KS test
-                fit_ks = fit.kstest.p_value if fit.kstest else 0
-                if fit_ks > best_ks_value:
-                    best_ks_value = fit_ks
-                    best_ks_fit = fit
-
-        if criterion not in ("likelihood", "ks", "combined"):
-            raise ValueError(f"Unknown criterion '{criterion}'")
+            fit_ks = fit.kstest.p_value if fit.kstest else 0
+            if fit_ks > best_ks_value:
+                best_ks_value = fit_ks
+                best_ks_fit = fit
 
         # Each criterion is marked independently: a KS test that never clears the
         # p > 0 threshold (routine for discrete families on a large sample, where
         # ties push the p-value to numerical zero) must not suppress a perfectly
         # good best_likelihood winner, and vice versa.
-        if criterion in ("likelihood", "combined") and best_likelihood_fit is not None:
+        if mark_likelihood and best_likelihood_fit is not None:
             for fit in fits:
-                if isinstance(fit, FitResult):
-                    fit.best_likelihood = (
-                        fit.distribution == best_likelihood_fit.distribution
-                    )
+                fit.best_likelihood = fit.distribution == best_likelihood_fit.distribution
 
-        if criterion in ("ks", "combined") and best_ks_fit is not None:
+        if mark_ks and best_ks_fit is not None:
             for fit in fits:
-                if isinstance(fit, FitResult):
-                    fit.best_ks = fit.distribution == best_ks_fit.distribution
+                fit.best_ks = fit.distribution == best_ks_fit.distribution
 
-        # Return the original list
         return fits
 
     def fit(
@@ -316,7 +336,7 @@ class DistributionFitter:
         discrete: bool,
         method: str = "mle",
         criterion: str = "combined",
-    ) -> list[Result]:
+    ) -> FitResults:
         """
         Fit all registered distributions to data, mark the best fits, and return results.
 
@@ -327,11 +347,8 @@ class DistributionFitter:
             criterion: Selection criterion ('likelihood', 'ks', or 'combined') for marking best fits
 
         Returns:
-            List of Result objects (either FitResult or FailedFit) with best fits marked
+            Results split into successes and failures, with best fits marked
         """
-        if criterion not in ["likelihood", "ks", "combined"]:
-            raise ValueError(f"Unknown criterion '{criterion}'")
-
         results = []
         for dist_name in self._registry.get_names():
             dist_obj = self._registry.get_distribution(dist_name)
@@ -342,31 +359,23 @@ class DistributionFitter:
             if not discrete and not dist_obj.is_discrete:
                 results.append(self.fit_distribution(dist_name, data, method))
 
-        # Mark the best fits based on criterion
-        self._mark_best_fits(results, criterion)
+        successes = [r for r in results if isinstance(r, FitResult)]
+        failures = [r for r in results if not isinstance(r, FitResult)]
 
-        return results
+        self._mark_best_fits(successes, criterion)
+
+        return FitResults(successes=successes, failures=failures)
 
     @staticmethod
-    def best(results: list[Result], criterion: str = "combined") -> list[Result]:
-        if criterion == "ks":
-            return [
-                fit for fit in results if isinstance(fit, FitResult) and fit.best_ks
-            ]
-        elif criterion == "likelihood":
-            return [
-                fit
-                for fit in results
-                if isinstance(fit, FitResult) and fit.best_likelihood
-            ]
-        elif criterion == "combined":
-            return [
-                fit
-                for fit in results
-                if isinstance(fit, FitResult) and (fit.best_likelihood or fit.best_ks)
-            ]
-        else:
-            raise ValueError(f"Unknown criterion '{criterion}'")
+    def best(results: FitResults, criterion: str = "combined") -> List[FitResult]:
+        """Return the successes marked best under `criterion`."""
+        mark_likelihood, mark_ks = _validate_criterion(criterion)
+        return [
+            fit
+            for fit in results.successes
+            if (mark_likelihood and fit.best_likelihood)
+            or (mark_ks and fit.best_ks)
+        ]
 
 
 @dataclass
@@ -518,8 +527,8 @@ class NullDistribution:
         )
 
 
-def fit_table(results: List[Result]) -> pd.DataFrame:
-    """Turn a list of fit results into a ranked dataframe: what a student hands in.
+def fit_table(results: FitResults) -> pd.DataFrame:
+    """Turn a fit run's results into a ranked dataframe: what a student hands in.
 
     One row per distribution: name, fitted params, log-likelihood, KS statistic and
     KS p-value, plus which criteria (if any) it won. Ranked by log-likelihood,
@@ -527,37 +536,32 @@ def fit_table(results: List[Result]) -> pd.DataFrame:
     sort last, since a missing likelihood is not a small likelihood.
     """
     rows = []
-    for result in results:
-        if isinstance(result, FitResult):
-            rows.append(
-                {
-                    "distribution": result.distribution,
-                    "params": result.params,
-                    "log_likelihood": result.log_likelihood,
-                    "ks_stat": result.kstest.statistic
-                    if result.kstest
-                    else float("nan"),
-                    "ks_pvalue": result.kstest.p_value
-                    if result.kstest
-                    else float("nan"),
-                    "best_likelihood": bool(result.best_likelihood),
-                    "best_ks": bool(result.best_ks),
-                    "message": result.message,
-                }
-            )
-        else:
-            rows.append(
-                {
-                    "distribution": result.distribution,
-                    "params": None,
-                    "log_likelihood": float("nan"),
-                    "ks_stat": float("nan"),
-                    "ks_pvalue": float("nan"),
-                    "best_likelihood": False,
-                    "best_ks": False,
-                    "message": result.message,
-                }
-            )
+    for result in results.successes:
+        rows.append(
+            {
+                "distribution": result.distribution,
+                "params": result.params,
+                "log_likelihood": result.log_likelihood,
+                "ks_stat": result.kstest.statistic if result.kstest else float("nan"),
+                "ks_pvalue": result.kstest.p_value if result.kstest else float("nan"),
+                "best_likelihood": bool(result.best_likelihood),
+                "best_ks": bool(result.best_ks),
+                "message": result.message,
+            }
+        )
+    for result in results.failures:
+        rows.append(
+            {
+                "distribution": result.distribution,
+                "params": None,
+                "log_likelihood": float("nan"),
+                "ks_stat": float("nan"),
+                "ks_pvalue": float("nan"),
+                "best_likelihood": False,
+                "best_ks": False,
+                "message": result.message,
+            }
+        )
 
     table = pd.DataFrame(rows)
     return table.sort_values(

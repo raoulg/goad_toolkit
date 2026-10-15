@@ -1055,3 +1055,18 @@ def test_distplot_draws_a_discrete_family_at_integers():
     ys = ax.lines[0].get_ydata()
     assert np.all(np.equal(np.mod(xs, 1), 0))
     assert ys.max() == pytest.approx(stats.poisson(mu=4).pmf(4), rel=1e-6)
+
+
+def test_save_writes_the_figure_in_the_format_of_its_suffix(data, tmp_path):
+    plot = LinePlot(PlotSettings())
+    plot.plot(data=data, x="date", y="deaths")
+
+    written = plot.save(tmp_path / "out" / "deaths.png")
+
+    assert written == tmp_path / "out" / "deaths.png"
+    assert written.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_save_before_plot_says_so():
+    with pytest.raises(ValueError, match="call plot"):
+        LinePlot(PlotSettings()).save("never.png")

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union
 
 import pandas as pd
 from loguru import logger
@@ -268,7 +268,7 @@ class GroupAgg(TransformBase):
     def transform(
         self,
         data: pd.DataFrame,
-        by,
+        by: Union[str, List[str]],
         column: Optional[str] = None,
         agg: str = "size",
         feature: Optional[str] = None,
@@ -299,7 +299,7 @@ class Share(TransformBase):
         data: pd.DataFrame,
         column: str,
         feature: Optional[str] = None,
-        by=None,
+        by: Optional[Union[str, List[str]]] = None,
     ) -> pd.DataFrame:
         if by is None:
             total = data[column].sum()
@@ -320,7 +320,7 @@ class FlagDates(TransformBase):
     """
 
     def transform(
-        self, data: pd.DataFrame, column: str, dates, feature: str
+        self, data: pd.DataFrame, column: str, dates: Iterable[Any], feature: str
     ) -> pd.DataFrame:
         values = pd.to_datetime(data[column])
         if values.dt.tz is not None:

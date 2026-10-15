@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields, replace
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import matplotlib.category as mpc
 import matplotlib.dates as mdates
@@ -15,7 +16,7 @@ from matplotlib.patches import Rectangle
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf
 
-from goad_toolkit.analytics import FitResult, NullResult, Result
+from goad_toolkit.analytics import FitResult, FitResults, NullResult
 
 
 @dataclass
@@ -63,7 +64,9 @@ class BasePlot(ABC):
         # plot draws last puts them back.
         self._labels: Dict[Axes, Tuple[Optional[str], Optional[str]]] = {}
 
-    def plot(self, n_plots: Optional[int] = None, *args, **kwargs):
+    def plot(
+        self, n_plots: Optional[int] = None, *args, **kwargs
+    ) -> Tuple[Figure, Axes]:
         """Create the figure if needed, then hand the drawing to `build`.
 
         Any keyword that names a `PlotSettings` field (`title`, `xlabel`,
@@ -107,7 +110,9 @@ class BasePlot(ABC):
             self._apply_labels(self.ax)
         return drawn
 
-    def create_figure(self, n_plots: Optional[int] = None):
+    def create_figure(
+        self, n_plots: Optional[int] = None
+    ) -> Tuple[Figure, List[Axes]]:
         """Create a figure and configure it based on settings.
         Parameters:
         -----------
@@ -135,7 +140,7 @@ class BasePlot(ABC):
                 sharex=self.settings.sharex,
                 sharey=self.settings.sharey,
             )
-            axes = axes.flatten()
+            axes = list(axes.flatten())
             # Hide unused axes
             for i in range(n_plots, len(axes)):
                 axes[i].set_visible(False)
@@ -180,7 +185,20 @@ class BasePlot(ABC):
 
         return self.fig, axes
 
-    def plot_on(self, other_plot: "BasePlot", *args, **kwargs):
+    def save(self, path: Union[str, Path], **kwargs: Any) -> Path:
+        """Write the figure this plot drew to `path`; the suffix picks the format.
+
+        The parent directory is created when it does not exist. Keywords go to
+        `Figure.savefig` (`dpi=`, `bbox_inches=`, ...).
+        """
+        if self.fig is None:
+            raise ValueError("No figure yet: call plot() before save()")
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.fig.savefig(path, **kwargs)
+        return path
+
+    def plot_on(self, other_plot: "BasePlot", *args, **kwargs) -> "BasePlot":
         """Combine BasePlot classes in a hierarchy.
 
         Parameters:
@@ -207,7 +225,9 @@ class BasePlot(ABC):
         # Return the plot in case further configuration is needed
         return other_plot
 
-    def plot_on_axes(self, other_plot: "BasePlot", ax: Axes, *args, **kwargs):
+    def plot_on_axes(
+        self, other_plot: "BasePlot", ax: Axes, *args, **kwargs
+    ) -> "BasePlot":
         """Use another plot class to plot on a specific axis within this figure.
 
         Parameters:
@@ -253,8 +273,14 @@ class BasePlot(ABC):
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
+    def _drawn(self) -> Tuple[Figure, Axes]:
+        """The figure and axes this plot drew on, once `plot` has created them."""
+        if self.fig is None or self.ax is None:
+            raise ValueError("No figure yet: call plot() before reading what it drew")
+        return self.fig, self.ax
+
     @abstractmethod
-    def build(self, *args, **kwargs):
+    def build(self, *args, **kwargs) -> Tuple[Figure, Axes]:
         raise NotImplementedError("Plotting method must be implemented")
 
 
@@ -268,7 +294,9 @@ class LinePlot(BasePlot):
     series reindexed to its full date range.
     """
 
-    def build(self, data: pd.DataFrame, gaps: bool = False, **kwargs):
+    def build(
+        self, data: pd.DataFrame, gaps: bool = False, **kwargs
+    ) -> Tuple[Figure, Axes]:
         if gaps:
             x = kwargs.pop("x", None)
             y = kwargs.pop("y", None)
@@ -280,13 +308,15 @@ class LinePlot(BasePlot):
             self.ax.plot(xs, data[y], **kwargs)
             if kwargs.get("label") is not None:
                 self.ax.legend()
-            return self.fig, self.ax
+            return self._drawn()
         sns.lineplot(data=data, ax=self.ax, **kwargs)
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class ComparePlot(BasePlot):
-    def build(self, data: pd.DataFrame, x: str, y1: str, y2: str, **kwargs):
+    def build(
+        self, data: pd.DataFrame, x: str, y1: str, y2: str, **kwargs
+    ) -> Tuple[Figure, Axes]:
         compare = LinePlot(self.settings)
         self.plot_on(compare, data=data, x=x, y=y1, label=y1, **kwargs)
         self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
@@ -294,11 +324,11 @@ class ComparePlot(BasePlot):
             raise ValueError("No axes available for plotting")
         self.ax.tick_params(axis="x", rotation=45)
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class VerticalDate(BasePlot):
-    def build(self, date: str, label: str):
+    def build(self, date: str, label: str) -> Tuple[Figure, Axes]:
         if self.ax is None:
             raise ValueError("No axes available for plotting")
         datemark = pd.to_datetime(date)
@@ -315,7 +345,7 @@ class VerticalDate(BasePlot):
             linewidth=2,
             label=label,
         )
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class VerticalLine(BasePlot):
@@ -329,7 +359,7 @@ class VerticalLine(BasePlot):
         linestyle: str = "--",
         linewidth: float = 2,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw a vertical line at `x`.
 
@@ -365,7 +395,7 @@ class VerticalLine(BasePlot):
         if label is not None:
             self.ax.legend()
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class HorizontalLine(BasePlot):
@@ -384,7 +414,7 @@ class HorizontalLine(BasePlot):
         linestyle: str = "-",
         linewidth: float = 1,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw a horizontal line at `y`.
 
@@ -420,7 +450,7 @@ class HorizontalLine(BasePlot):
         if label is not None:
             self.ax.legend()
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class HighlightCategory(BasePlot):
@@ -442,7 +472,7 @@ class HighlightCategory(BasePlot):
         color: Optional[str] = None,
         base_color: Optional[str] = None,
         axis: str = "x",
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Recolour the bars on this axis: `categories` picked out, the rest grey.
 
@@ -526,7 +556,7 @@ class HighlightCategory(BasePlot):
             label = labels[nearest] if nearest < len(labels) else ""
             patch.set_facecolor(color if label in wanted else base_color)
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class Annotate(BasePlot):
@@ -546,7 +576,7 @@ class Annotate(BasePlot):
         color: str = "black",
         fontsize: float = 11,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Place `text` on the axis, optionally with an arrow to the point.
 
@@ -588,7 +618,7 @@ class Annotate(BasePlot):
             arrowprops=arrowprops,
             **kwargs,
         )
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class ComparePlotDate(BasePlot):
@@ -601,7 +631,7 @@ class ComparePlotDate(BasePlot):
         date: str,
         datelabel: str,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         compare = LinePlot(self.settings)
         self.plot_on(compare, data=data, x=x, y=y1, label=y1, **kwargs)
         self.plot_on(compare, data=data, x=x, y=y2, label=y2, **kwargs)
@@ -613,7 +643,7 @@ class ComparePlotDate(BasePlot):
             raise ValueError("No axes available for plotting")
         self.ax.tick_params(axis="x", rotation=45)
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class BarPlot(BasePlot):
@@ -635,7 +665,7 @@ class BarPlot(BasePlot):
         y: str,
         order: Optional[List[str]] = None,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw one bar per level of `x`.
 
@@ -661,7 +691,7 @@ class BarPlot(BasePlot):
         fig, ax : The created figure and axes.
         """
         sns.barplot(data=data, x=x, y=y, order=order, ax=self.ax, **kwargs)
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class GroupedBarPlot(BasePlot):
@@ -681,7 +711,7 @@ class GroupedBarPlot(BasePlot):
         order: Optional[List[str]] = None,
         hue_order: Optional[List[str]] = None,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw bars of `y` per level of `x`, split by `hue`.
 
@@ -711,7 +741,7 @@ class GroupedBarPlot(BasePlot):
             ax=self.ax,
             **kwargs,
         )
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class HeatmapPlot(BasePlot):
@@ -734,7 +764,7 @@ class HeatmapPlot(BasePlot):
         annot: bool = True,
         fmt: str = ".1f",
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw a heatmap, pivoting the frame first when told how.
 
@@ -777,7 +807,7 @@ class HeatmapPlot(BasePlot):
             matrix = data
 
         sns.heatmap(matrix, cmap=cmap, annot=annot, fmt=fmt, ax=self.ax, **kwargs)
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class FacetPlot(BasePlot):
@@ -798,7 +828,7 @@ class FacetPlot(BasePlot):
         by: str,
         order: Optional[List[str]] = None,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, List[Axes]]:
         """
         Draw `inner` once per level of `data[by]`.
 
@@ -834,7 +864,7 @@ class FacetPlot(BasePlot):
             self.plot_on_axes(inner, ax, data=data[data[by] == level], **kwargs)
         return self.fig, axes
 
-    def build(self):
+    def build(self) -> None:  # type: ignore[override]
         """No-op: `FacetPlot` overrides `plot` because the panel count comes from the data."""
         pass
 
@@ -860,7 +890,7 @@ class BarbellPlot(BasePlot):
         line_color: str = "lightgrey",
         markersize: float = 80,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw one row per category, with a dot at `start`, a dot at `end`, and
         a line joining them.
@@ -923,20 +953,30 @@ class BarbellPlot(BasePlot):
         self.ax.set_yticklabels([str(label) for label in data[category]])
         self.ax.legend()
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class BarWithDates(BasePlot):
-    def build(self, data, x: str, y: str, interval: int = 1, **kwargs):
+    def build(
+        self, data: pd.DataFrame, x: str, y: str, interval: int = 1, **kwargs
+    ) -> Tuple[Figure, Axes]:
         if self.ax is None:
             raise ValueError("No axes available for plotting")
         sns.barplot(data=data, x=x, y=y, ax=self.ax, **kwargs)
         self.ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class ResidualPlot(BasePlot):
-    def build(self, data, x: str, y: str, date: str, datelabel: str, interval: int = 1):
+    def build(
+        self,
+        data: pd.DataFrame,
+        x: str,
+        y: str,
+        date: str,
+        datelabel: str,
+        interval: int = 1,
+    ) -> Tuple[Figure, Axes]:
         barplot = BarWithDates(self.settings)
         self.plot_on(barplot, data=data, x=x, y=y, interval=interval)
         vertical = VerticalDate(self.settings)
@@ -944,13 +984,13 @@ class ResidualPlot(BasePlot):
         if self.ax is None:
             raise ValueError("No axes available for plotting")
         self.ax.tick_params(axis="x", rotation=45)
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class DecomposePlot(BasePlot):
     """Decompose a series into observed, trend, seasonal and residual panels."""
 
-    def plot(
+    def plot(  # type: ignore[override]
         self,
         data: pd.DataFrame,
         column: str,
@@ -998,7 +1038,7 @@ class DecomposePlot(BasePlot):
 
         return self.fig
 
-    def build(self):
+    def build(self) -> None:  # type: ignore[override]
         """No-op: `DecomposePlot` overrides `plot` because the panel count is fixed at four."""
         pass
 
@@ -1015,7 +1055,7 @@ class ACFPlot(BasePlot):
         band_color: str = "gray",
         linewidth: float = 1.5,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Plot the autocorrelation function for a series.
 
@@ -1062,7 +1102,7 @@ class ACFPlot(BasePlot):
         # vanish or double up depending on where they land on the pixel grid.
         self.ax.vlines(lags, 0, values, color=color, linewidth=linewidth, **kwargs)
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class ScatterPlot(BasePlot):
@@ -1080,7 +1120,7 @@ class ScatterPlot(BasePlot):
         y: str,
         alpha: float = 0.6,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw a scatter of `y` against `x`.
 
@@ -1102,7 +1142,7 @@ class ScatterPlot(BasePlot):
         fig, ax : The created figure and axes.
         """
         sns.scatterplot(data=data, x=x, y=y, alpha=alpha, ax=self.ax, **kwargs)
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class RegPlot(BasePlot):
@@ -1125,7 +1165,7 @@ class RegPlot(BasePlot):
         scatter: bool = True,
         color: str = "crimson",
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw a regression fit of `y` on `x`, with the scatter under it.
 
@@ -1172,7 +1212,7 @@ class RegPlot(BasePlot):
             ax=self.ax,
             **kwargs,
         )
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class CorrelationHeatmap(BasePlot):
@@ -1192,7 +1232,7 @@ class CorrelationHeatmap(BasePlot):
         annot: bool = True,
         fmt: str = ".2f",
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw the correlation matrix of a frame's numeric columns.
 
@@ -1232,7 +1272,7 @@ class CorrelationHeatmap(BasePlot):
         kwargs.setdefault("vmax", 1)
         kwargs.setdefault("center", 0)
         sns.heatmap(matrix, cmap=cmap, annot=annot, fmt=fmt, ax=self.ax, **kwargs)
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class ProjectionPlot(BasePlot):
@@ -1253,7 +1293,7 @@ class ProjectionPlot(BasePlot):
         alpha: float = 0.7,
         hide_axes: bool = True,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Scatter a set of two-dimensional coordinates.
 
@@ -1298,7 +1338,7 @@ class ProjectionPlot(BasePlot):
             self.ax.set_xticks([])
             self.ax.set_yticks([])
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class ScreePlot(BasePlot):
@@ -1317,7 +1357,7 @@ class ScreePlot(BasePlot):
         color: str = "steelblue",
         line_color: str = "crimson",
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Draw the variance explained per component, and the running total.
 
@@ -1366,7 +1406,7 @@ class ScreePlot(BasePlot):
             self.ax.legend()
 
         self.ax.set_xticks(components)
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class HistogramPlot(BasePlot):
@@ -1381,7 +1421,7 @@ class HistogramPlot(BasePlot):
         alpha: float = 0.7,
         stat: str = "density",
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Create a histogram plot of the provided data.
 
@@ -1424,7 +1464,7 @@ class HistogramPlot(BasePlot):
             **kwargs,
         )
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class DistPlot(BasePlot):
@@ -1439,7 +1479,7 @@ class DistPlot(BasePlot):
         linewidth: float = 2,
         label: Optional[str] = None,
         **kwargs,
-    ) -> Tuple[Any, Any]:
+    ) -> Tuple[Figure, Axes]:
         """
         Create a KDE plot from a given distribution.
 
@@ -1485,7 +1525,7 @@ class DistPlot(BasePlot):
         if label is not None:
             self.ax.legend()
 
-        return self.fig, self.ax
+        return self._drawn()
 
     def _estimate_x(
         self,
@@ -1537,7 +1577,7 @@ class QQPlot(BasePlot):
         line_color: str = "black",
         alpha: float = 0.6,
         **kwargs,
-    ) -> Tuple[Any, Any]:
+    ) -> Tuple[Figure, Axes]:
         """
         Plot sample quantiles against a distribution's theoretical quantiles.
 
@@ -1578,7 +1618,7 @@ class QQPlot(BasePlot):
         hi = max(np.max(theoretical), np.max(sample))
         self.ax.plot([lo, hi], [lo, hi], color=line_color, linewidth=1, linestyle="--")
 
-        return self.fig, self.ax
+        return self._drawn()
 
 
 class ECDFPlot(BasePlot):
@@ -1598,7 +1638,7 @@ class ECDFPlot(BasePlot):
         color: str = "steelblue",
         compare_color: str = "crimson",
         **kwargs,
-    ) -> Tuple[Any, Any]:
+    ) -> Tuple[Figure, Axes]:
         """
         Plot the empirical CDF of `data`, and optionally a second sample over it.
 
@@ -1639,7 +1679,7 @@ class ECDFPlot(BasePlot):
         if compare is not None or label:
             ax.legend()
 
-        return self.fig, self.ax
+        return self._drawn()
 
     def _draw(
         self, ax: Axes, values: np.ndarray, color: str, label: Optional[str], **kwargs
@@ -1669,7 +1709,7 @@ class NullPlot(BasePlot):
         line_color: str = "crimson",
         label: Optional[str] = None,
         **kwargs,
-    ):
+    ) -> Tuple[Figure, Axes]:
         """
         Plot a null distribution and the observed statistic over it.
 
@@ -1704,7 +1744,7 @@ class NullPlot(BasePlot):
         line = VerticalLine(self.settings)
         self.plot_on(line, x=result.observed, label=label, color=line_color)
 
-        return self.fig, self.ax
+        return self._drawn()
 
     def _annotation(self, result: NullResult, alternative: str) -> str:
         """Write the finding on the plot: the observed value and how rare it was."""
@@ -1743,10 +1783,10 @@ class FitPlotSettings:
 class PlotFits(BasePlot):
     """Plot histogram of data with fitted distributions overlaid."""
 
-    def plot(
+    def plot(  # type: ignore[override]
         self,
         data: np.ndarray,
-        fit_results: List[Result],
+        fit_results: FitResults,
         fitplotsettings: "FitPlotSettings",
     ) -> Figure:
         """
@@ -1756,8 +1796,8 @@ class PlotFits(BasePlot):
         -----------
         data : np.ndarray
             Data to plot
-        fit_results : List[FitResult]
-            List of fit results to plot (expect them to have best_likelihood and best_ks attributes)
+        fit_results : FitResults
+            Results to plot (expect the successes to have best_likelihood and best_ks attributes)
         fitplotsettings : FitPlotSettings
             Settings for the fit plots
 
@@ -1784,14 +1824,13 @@ class PlotFits(BasePlot):
 
         return self.fig
 
-    def build(self):
+    def build(self) -> None:  # type: ignore[override]
         pass
 
     def _prepare_fits(
-        self, fit_results: List[Result], max_fits: Optional[int] = None
+        self, fit_results: FitResults, max_fits: Optional[int] = None
     ) -> List[FitResult]:
-        # Filter only successful fits
-        successful_fits = [fit for fit in fit_results if isinstance(fit, FitResult)]
+        successful_fits = fit_results.successes
 
         if not successful_fits:
             raise ValueError("No successful fits to plot")
