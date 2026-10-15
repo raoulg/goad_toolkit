@@ -213,6 +213,11 @@ class FailedFit:
     success: bool = False
 
 Result = Union[FitResult, FailedFit]
+
+@dataclass
+class FitResults:
+    successes: List[FitResult]
+    failures: List[FailedFit]
 ```
 
 ```python
@@ -224,25 +229,26 @@ class DistributionFitter:
 
     def fit(self, data: np.ndarray, discrete: bool,
             method: str = "mle",
-            criterion: str = "combined") -> list[Result]
+            criterion: str = "combined") -> FitResults
 
     def fit_distribution(self, dist_name: str, data: np.ndarray,
                          method: str = "mle") -> Result
 
     @staticmethod
-    def best(results: list[Result], criterion: str = "combined") -> list[Result]
+    def best(results: FitResults, criterion: str = "combined") -> List[FitResult]
 
-def fit_table(results: list[Result]) -> pd.DataFrame
+def fit_table(results: FitResults) -> pd.DataFrame
 ```
 
-`criterion` is one of `"likelihood"`, `"ks"`, `"combined"`. Failures are returned as
-`FailedFit` values rather than raised. `log_likelihood` is computed with `logpdf` for
-continuous families and `logpmf` for discrete ones. The two criteria are marked
-independently: a `criterion="combined"` fit where every KS p-value comes back exactly 0
-(routine for discrete families on a large, tied sample) still gets a `best_likelihood`
-winner — it just has no `best_ks` winner.
+`criterion` is one of `"likelihood"`, `"ks"`, `"combined"` — an unknown value raises
+`ValueError`. Failures are returned as `FailedFit` values rather than raised, and `fit`
+already splits them from the successes in the `FitResults` it returns. `log_likelihood` is
+computed with `logpdf` for continuous families and `logpmf` for discrete ones. The two
+criteria are marked independently: a `criterion="combined"` fit where every KS p-value comes
+back exactly 0 (routine for discrete families on a large, tied sample) still gets a
+`best_likelihood` winner — it just has no `best_ks` winner.
 
-`fit_table` turns a list of results into one row per distribution — `distribution`, `params`,
+`fit_table` turns a `FitResults` into one row per distribution — `distribution`, `params`,
 `log_likelihood`, `ks_stat`, `ks_pvalue`, `best_likelihood`, `best_ks`, `message` — ranked by
 `log_likelihood` descending, with `FailedFit` rows (their `message` kept, metrics `NaN`)
 sorted last.
@@ -383,7 +389,7 @@ class BasePlot(ABC):
 ```python
 class PlotFits(BasePlot):
     def plot(self, data: np.ndarray,
-             fit_results: List[Result],
+             fit_results: FitResults,
              fitplotsettings: FitPlotSettings) -> Figure
 
 class DecomposePlot(BasePlot):
@@ -451,7 +457,7 @@ goad data/counts.csv events --discrete --criterion ks
 ```python
 def parse_args(argv: List[str] | None = None) -> argparse.Namespace
 def load_column(file: Path, column: str) -> np.ndarray    # dropna, as an array
-def format_results(results: List[Result]) -> str
+def format_results(results: FitResults) -> str
 def main(argv: List[str] | None = None) -> None
 ```
 

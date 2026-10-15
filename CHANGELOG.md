@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.17
+
+### Changed
+
+- `DistributionFitter.fit` returns a `FitResults` (`.successes`, `.failures`) instead of a
+  flat list, so `format_results`, `PlotFits` and `fit_table` read the split directly instead
+  of each re-deriving it with `isinstance`. `criterion` (`"likelihood"`/`"ks"`/`"combined"`)
+  is now validated and dispatched from one `CRITERIA` table shared by `fit`, `best` and the
+  CLI's `--criterion` choices, instead of four separate string checks.
+- The top-level `goad_toolkit` package exports `DataProcessor`, `Pipeline`, `BasePlot` and
+  `DistributionFitter` lazily, so `import goad_toolkit` — and the `goad` CLI — no longer
+  pulls in matplotlib.
+
+### Added
+
+- `BasePlot.save(path)` writes the current figure to `path`, creating the parent directory
+  if it does not exist yet.
+
 ## 0.2.16.1
 
 ### Changed

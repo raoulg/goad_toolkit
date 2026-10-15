@@ -74,9 +74,10 @@ best = fitter.best(results, criterion="combined")
 ```
 
 `fit` walks the registry, keeps only families matching the `discrete` flag, and fits each one
-by maximum likelihood. For each family it returns either a `FitResult` or a `FailedFit` —
-failures are values, not exceptions, so one badly-behaved family does not lose you the rest
-of the comparison.
+by maximum likelihood. It returns a `FitResults`: `.successes` holds the `FitResult`s,
+`.failures` the `FailedFit`s — failures are values, not exceptions, so one badly-behaved
+family does not lose you the rest of the comparison. `fit_distribution`, for a single family,
+returns either one directly.
 
 A `FitResult` carries:
 
@@ -211,7 +212,7 @@ from goad_toolkit.analytics import fit_table
 fit_table(results)
 ```
 
-`fit_table` turns a list of `fit()` results into the dataframe a student should hand in
+`fit_table` turns `fit()`'s results into the dataframe a student should hand in
 instead of a screenshot of a picture: distribution, fitted params, log-likelihood, KS
 statistic and p-value, and which criteria (if any) it won — ranked by log-likelihood, with
 `FailedFit` rows sorted last and their message kept instead of a blank row.

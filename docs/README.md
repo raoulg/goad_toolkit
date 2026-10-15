@@ -81,7 +81,7 @@ src/goad_toolkit/
 │                       # RollingAvg, ZScaler, and the Pipeline that chains them
 ├── dataprocessor.py    # DataProcessor: a FileHandler and a Pipeline, wired together
 ├── distributions.py    # Distribution, DistributionRegistry
-├── analytics.py        # DistributionFitter, FitResult, FailedFit, KSTestResult
+├── analytics.py        # DistributionFitter, FitResults, FitResult, FailedFit, KSTestResult
 ├── models.py           # linear_model, logistic, mse, train_model
 ├── visualizer.py       # PlotSettings + BasePlot and its subclasses, PlotFits
 └── cli.py              # the `goad` command: fit the registry to one column
